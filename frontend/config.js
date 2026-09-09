@@ -4,5 +4,5 @@
 // the Gemini API key lives server-side only, in Apps Script Script
 // Properties (see backend/Code.gs).
 const CONFIG = {
-  WEBAPP_URL: 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_EXEC_URL_HERE'
+  WEBAPP_URL: 'https://script.google.com/macros/s/AKfycbz_5UGK_q-orp68I5p-Ibf_9BPe3SY8-5umBxZQcm1k858_Supi2Yu15hZ7jm8KND38dg/exec'
 };
