@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Exam Marks Tracker</title>
+<meta name="theme-color" content="#ffffff">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<main id="app">
+
+  <!-- Screen 1: Home -->
+  <section id="screen-home" class="screen">
+    <h1>Exam Marks Tracker</h1>
+
+    <div class="mode-toggle" role="tablist">
+      <button id="modeStudentBtn" type="button" class="mode-btn active" role="tab">Student</button>
+      <button id="modeFacultyBtn" type="button" class="mode-btn" role="tab">Faculty</button>
+    </div>
+
+    <label for="examSelect">Exam</label>
+    <select id="examSelect">
+      <option value="">Loading exams...</option>
+    </select>
+    <p id="noExamsHint" class="hint hidden">No exams configured yet. Switch to Faculty mode to create one.</p>
+
+    <!-- Student actions -->
+    <div id="studentActions" class="button-stack">
+      <button id="scanBtn" type="button" disabled>Scan Marks Sheet</button>
+      <button id="uploadBtn" type="button" disabled>Upload Marks Sheet</button>
+    </div>
+    <p id="studentHint" class="hint" style="margin-top: 10px;">After in-person verification with faculty: scan or upload a photo of your marks sheet. Good lighting and filling the frame around the H.T. No. box gives the most accurate reading.</p>
+
+    <!-- Faculty actions -->
+    <div id="facultyActions" class="button-stack hidden">
+      <button id="createExamBtn" type="button">Create New Exam</button>
+      <button id="viewSubmissionsBtn" type="button" class="secondary" disabled>View Submissions</button>
+      <button id="manualEntryBtn" type="button" class="secondary" disabled>Enter Marks Manually</button>
+    </div>
+
+    <input id="cameraInput" type="file" accept="image/*" capture="environment" hidden>
+    <input id="fileInput" type="file" accept="image/*" hidden>
+  </section>
+
+  <!-- Screen 2: Create Exam (faculty) -->
+  <section id="screen-create-exam" class="screen hidden">
+    <h1>Create Exam</h1>
+    <label for="newExamName">Exam Name</label>
+    <input id="newExamName" type="text" placeholder="e.g. Mid-Term 1">
+
+    <label for="newExamSubject">Subject</label>
+    <input id="newExamSubject" type="text" placeholder="e.g. Data Structures">
+
+    <label for="newQ1Max">Q1 Max (per sub-question, a-j)</label>
+    <input id="newQ1Max" type="number" step="0.5" min="0" placeholder="e.g. 1">
+
+    <label for="newQ2to7Max">Q2-Q7 Max (per sub-question, a/b)</label>
+    <input id="newQ2to7Max" type="number" step="0.5" min="0" placeholder="e.g. 5">
+
+    <label for="newAssignmentMax">Assignment Max</label>
+    <input id="newAssignmentMax" type="number" step="0.5" min="0" placeholder="e.g. 5">
+
+    <p id="createExamError" class="error hidden"></p>
+
+    <div class="button-row">
+      <button id="createExamCancelBtn" type="button" class="secondary">Cancel</button>
+      <button id="createExamSubmitBtn" type="button">Create</button>
+    </div>
+  </section>
+
+  <!-- Screen 3: Preview (student capture review) -->
+  <section id="screen-preview" class="screen hidden">
+    <h1>Review your capture</h1>
+    <div id="previewArea" class="preview-area"></div>
+    <div class="button-row">
+      <button id="retakeBtn" type="button" class="secondary">Retake</button>
+      <button id="proceedBtn" type="button">Proceed</button>
+    </div>
+  </section>
+
+  <!-- Screen 4: Processing -->
+  <section id="screen-processing" class="screen hidden">
+    <h1>Processing</h1>
+    <div class="spinner"></div>
+    <p id="processingStatus" class="hint">Working...</p>
+    <p id="processingError" class="error hidden"></p>
+    <button id="processingBackBtn" type="button" class="secondary hidden">Back</button>
+  </section>
+
+  <!-- Screen 5: Submissions list (faculty) -->
+  <section id="screen-submissions" class="screen hidden">
+    <h1>Submissions</h1>
+    <p id="submissionsExamLabel" class="hint"></p>
+    <div id="submissionsList" class="submissions-list"></div>
+    <p id="submissionsEmptyHint" class="hint hidden">No submissions yet for this exam.</p>
+    <div class="button-row">
+      <button id="submissionsBackBtn" type="button" class="secondary">Back</button>
+    </div>
+  </section>
+
+  <!-- Screen 6: Marks Entry (shared: student capture flow + faculty manual/edit flow) -->
+  <section id="screen-marks" class="screen hidden">
+    <h1 id="marksTitle">Enter Marks</h1>
+    <p class="hint">Check every value against the physical sheet — OCR and AI extraction can misread handwriting.</p>
+
+    <div class="marks-layout">
+      <div id="marksPreviewArea" class="preview-area marks-preview hidden"></div>
+
+      <div class="marks-fields">
+        <label for="marksRollNo">Roll No. (enter full roll no.)</label>
+        <input id="marksRollNo" type="text" autocomplete="off" placeholder="e.g. 21A91A0501">
+
+        <div id="marksStatusRow" class="hidden">
+          <label for="marksStatus">Status</label>
+          <input id="marksStatus" type="text" placeholder="Submitted">
+        </div>
+
+        <h2>Q1 (Objective)</h2>
+        <div id="q1Grid" class="q1-grid"></div>
+
+        <h2>Q2 &ndash; Q7 (Subjective, best 4 of 6 counted)</h2>
+        <div id="qGroups" class="q-groups"></div>
+
+        <label for="marksAssignment">Assignment</label>
+        <input id="marksAssignment" type="number" step="0.5" min="0">
+
+        <div class="totals-summary">
+          <div><span>Objective Total</span><strong id="totalObjective">0</strong></div>
+          <div><span>Subjective Best-4 Total</span><strong id="totalBestFour">0</strong></div>
+          <div><span>Assignment</span><strong id="totalAssignment">0</strong></div>
+          <div class="totals-final"><span>Final Total</span><strong id="totalFinal">0</strong></div>
+        </div>
+
+        <label class="confirm-checkbox">
+          <input id="marksConfirmCheckbox" type="checkbox">
+          I have checked these marks against the physical sheet and confirm the Final Total shown above.
+        </label>
+
+        <p id="marksError" class="error hidden"></p>
+
+        <div class="button-row">
+          <button id="marksBackBtn" type="button" class="secondary">Back</button>
+          <button id="marksSubmitBtn" type="button" disabled>Submit</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Screen 7: Done -->
+  <section id="screen-done" class="screen hidden">
+    <h1>Submitted</h1>
+    <p id="doneMessage" class="hint"></p>
+    <button id="submitAnotherBtn" type="button">Submit Another</button>
+
+    <div class="done-nav">
+      <a href="https://chandrashaker.in" target="_blank" rel="noopener">Visit Main Website</a>
+      <a href="https://courses.chandrashaker.in" target="_blank" rel="noopener">Visit Courses</a>
+    </div>
+  </section>
+
+</main>
+
+<script src="config.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
