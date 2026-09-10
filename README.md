@@ -2,14 +2,13 @@
 
 Zero-cost PWA for capturing per-question exam marks from physical answer
 sheets straight into the Google Sheet that already does attainment
-calculation for that exam. A student scans or uploads a photo of the marks
-sheet (or enters marks manually if the scanner can't read it); Gemini reads
-the boxed roll number and, best-effort, the Q1 (objective) marks; the
-student checks/corrects those against the physical sheet and submits.
-Q2–Q7 (subjective, evaluator-graded) marks are entered separately by
-faculty, either by scanning the sheet themselves (e.g. if a student didn't)
-or typing them in manually. Every row lands directly in that exam's Sheet
-tab.
+calculation for that exam. A student (or faculty, on a student's behalf)
+scans or uploads a photo of the marks sheet — or enters marks manually if
+the scanner can't read it; Gemini reads the boxed roll number and,
+best-effort, every individual question's marks (Q1 a–j, Q2–Q7 a/b — these
+are already hand-written on the sheet by the evaluator before anyone scans
+it). Whoever is entering checks/corrects every value against the physical
+sheet before submitting. Every row lands directly in that exam's Sheet tab.
 
 Sibling app: [student-achievement-tracker](https://github.com/chandrashakera/student-achievement-tracker)
 — same architecture (Apps Script Web App backend, no server, no login,
@@ -51,24 +50,20 @@ frontend/   PWA: index.html, app.js, style.css, config.js, manifest, service wor
   Total | Status`.
 - Rows are keyed by Roll No. within an exam's tab — submitting the same
   roll no. again updates that row in place rather than duplicating it.
-- **Field ownership**: students only ever enter Roll No., Q1 (objective),
-  and Assignment — whether via scan/upload or Student mode's manual-entry
-  fallback. Q2–Q7 (subjective, evaluator-graded) are faculty-only, entered
-  via Faculty mode's own scan/upload, manual entry, or edit-submission
-  screen. Which fields are shown/required is driven entirely by the active
-  mode (Student vs Faculty), not by whether the entry came from OCR or
-  typing — a faculty scan captures Q2–Q7 individually just like a faculty
-  manual entry does. A student's `submitMarks` call omits Q2–Q7 entirely;
-  the backend treats a missing field as "leave it alone" (falls back to
-  that row's existing value, or 0 for a brand-new row), never as "set it to
-  zero" — so a student's submission never wipes out subjective marks
-  faculty already entered, and vice versa.
-- **Q1 entry**: all ten Q1 sub-questions (a–j) always carry the same mark,
-  so the UI shows one "marks per sub-question" field instead of ten. On
-  submit, that single value is expanded back into all of `q1a`..`q1j` in
-  the payload — the Sheet still stores each sub-question in its own column
-  (for any downstream per-question attainment mapping), the app just
-  doesn't make you type it ten times.
+- **Field ownership**: both students and faculty can enter every mark field
+  — Roll No., Q1 a–j, Q2–Q7 a/b, and Assignment — via scan/upload or manual
+  entry. There's no role-based restriction on which marks can be typed;
+  both roles are transcribing the same evaluator-graded physical sheet.
+  The one field gated by role is **Status**, faculty-only (an
+  evaluation-workflow field, not a mark). `submitMarks` is still a partial
+  update: any field omitted from a request falls back to that row's
+  existing stored value (or 0 for a brand-new row), never "set it to
+  zero" — so a correction to one field never wipes out marks already
+  entered by someone else.
+- **Q1 entry**: each of Q1's ten sub-questions (a–j) is captured and stored
+  individually, same as Q2–Q7's a/b — a student doesn't necessarily score
+  the same on every sub-question, so the UI shows ten separate fields, each
+  pre-filled from OCR where available and always editable.
 
 ## Computation rules
 
@@ -115,9 +110,10 @@ The Web App handles five JSON-POST actions on the same `/exec` URL:
 { "action": "submitMarks", "examId": "mid-term-1", "rollNo": "21A91A0501", "q1a": 1, "...": "...", "q1j": 1, "assignment": 5 }
 ```
 Any mark field may be omitted; an omitted field falls back to that row's
-existing stored value (or 0 if the row doesn't exist yet). A student
-submission typically sends only Q1 + Assignment; a faculty edit sends
-whatever fields they're correcting, Q2–Q7 included.
+existing stored value (or 0 if the row doesn't exist yet). Both a student
+submission and a faculty edit typically send every field — Q1 a–j, Q2–Q7
+a/b, and Assignment — since both roles enter the full marks grid; a field
+is only omitted when correcting a subset of an existing row.
 
 → `{ "success": true, "objectiveTotal": 9, "bestFourTotal": 34, "finalTotal": 48 }`
 
