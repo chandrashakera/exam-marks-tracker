@@ -60,6 +60,13 @@ frontend/   PWA: index.html, app.js, style.css, config.js, manifest, service wor
   existing stored value (or 0 for a brand-new row), never "set it to
   zero" — so a correction to one field never wipes out marks already
   entered by someone else.
+- **Blank ≠ zero**: every Q1/Q2–Q7 sub-question field is optional in the
+  UI — if nothing is written on the sheet for that sub-question, the field
+  is left blank rather than being forced to 0 before you can submit. A
+  blank field is omitted from the `submitMarks` request entirely (not sent
+  as `0`), so it's treated the same as any other omitted field: leave the
+  existing value alone, or default to 0 only for a brand-new row. Only
+  Assignment stays a required field.
 - **Q1 entry**: each of Q1's ten sub-questions (a–j) is captured and stored
   individually, same as Q2–Q7's a/b — a student doesn't necessarily score
   the same on every sub-question, so the UI shows ten separate fields, each

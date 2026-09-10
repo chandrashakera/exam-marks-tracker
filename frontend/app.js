@@ -419,18 +419,22 @@ function onMarkFieldInput(field, max) {
   updateSubmitEnablement();
 }
 
-function validateAndShowField(field, max) {
+// Q1/Q2-Q7 mark fields are optional: if the evaluator wrote nothing for a
+// sub-question, the field stays blank rather than being forced to 0 — a
+// blank and a written 0 mean different things, and only the latter is a
+// real score.
+function validateAndShowField(field, max, required = false) {
   const input = markInputs[field];
-  const { valid, message } = validateMarkValue(input.value, max);
+  const { valid, message } = validateMarkValue(input.value, max, required);
   input.classList.toggle('invalid', input.value !== '' && !valid);
   markErrorEls[field].textContent = input.value !== '' && !valid ? message : '';
   markErrorEls[field].classList.toggle('hidden', input.value === '' || valid);
-  return input.value !== '' && valid;
+  return valid;
 }
 
-function validateMarkValue(value, max) {
+function validateMarkValue(value, max, required = true) {
   if (value === '' || value === null || value === undefined) {
-    return { valid: false, message: 'Required' };
+    return required ? { valid: false, message: 'Required' } : { valid: true };
   }
   const num = Number(value);
   if (!isFinite(num) || num < 0) {
@@ -560,8 +564,13 @@ async function submitMarks() {
     rollNo: marksRollNo.value.trim(),
     assignment: Number(marksAssignment.value)
   };
-  Q1_FIELDS.forEach((f) => { payload[f] = Number(markInputs[f].value); });
-  SUBJECTIVE_FIELDS.forEach((f) => { payload[f] = Number(markInputs[f].value); });
+  // A blank sub-question field means "nothing written" — omit it entirely
+  // rather than sending 0, so the backend leaves that field alone (falls
+  // back to its existing stored value, or 0 only for a brand-new row)
+  // instead of recording a false zero score.
+  Q1_FIELDS.concat(SUBJECTIVE_FIELDS).forEach((f) => {
+    if (markInputs[f].value.trim() !== '') payload[f] = Number(markInputs[f].value);
+  });
   if (isFacultyMode() && marksStatus.value.trim()) {
     payload.status = marksStatus.value.trim();
   }
