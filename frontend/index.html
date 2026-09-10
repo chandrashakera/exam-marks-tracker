@@ -59,8 +59,8 @@
     <label for="newQ1Max">Q1 Max (per sub-question, a-j)</label>
     <input id="newQ1Max" type="number" step="0.5" min="0" placeholder="e.g. 1">
 
-    <label>Per-Question Max (Q2&ndash;Q7, applies to both a &amp; b)</label>
-    <div id="newQMaxGrid" class="q-max-grid"></div>
+    <label>Per-Sub-Question Max (Q2a/Q2b &hellip; Q7a/Q7b)</label>
+    <div id="newQMaxGrid" class="q-groups"></div>
 
     <label for="newAssignmentMax">Assignment Max</label>
     <input id="newAssignmentMax" type="number" step="0.5" min="0" placeholder="e.g. 5">
@@ -121,7 +121,9 @@
         </div>
 
         <h2>Q1 (Objective)</h2>
-        <div id="q1Grid" class="q1-grid"></div>
+        <label for="mark-q1all">Marks per sub-question (applies to all of a&ndash;j)</label>
+        <input id="mark-q1all" type="number" step="0.5" min="0">
+        <p id="error-q1all" class="field-error hidden"></p>
 
         <div id="subjectiveSection">
           <h2>Q2 &ndash; Q7 (Subjective, best 4 of 6 counted)</h2>

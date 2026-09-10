@@ -6,10 +6,10 @@
  * Code.gs — see that repo for the sibling implementation this mirrors):
  *
  *   - "listExams"        -> { success, exams: [{examId, examName, subject,
- *                             q1Max, q2Max..q7Max, assignmentMax}] } — each
- *                             of Q2-Q7 has its own max (applies to both its
- *                             a/b sub-parts), since questions often carry
- *                             different weights
+ *                             q1Max, q2aMax, q2bMax, ..., q7aMax, q7bMax,
+ *                             assignmentMax}] } — each of Q2-Q7's a/b
+ *                             sub-parts has its own max, since they aren't
+ *                             always worth the same marks
  *   - "createExam"       -> appends to the Exams tab, creates that exam's
  *                           marks tab with its header row, returns the exam
  *   - "listSubmissions"  -> { success, submissions: [{rollNo, ...marks,
@@ -39,26 +39,25 @@
  */
 
 var EXAMS_SHEET_NAME = 'Exams';
-var EXAMS_HEADERS = [
-  'Exam ID', 'Exam Name', 'Subject', 'Q1 Max (per sub-question)',
-  'Q2 Max (per sub-question)', 'Q3 Max (per sub-question)', 'Q4 Max (per sub-question)',
-  'Q5 Max (per sub-question)', 'Q6 Max (per sub-question)', 'Q7 Max (per sub-question)',
-  'Assignment Max', 'Marks Tab Name', 'Created At'
-];
 
 // Q1 is objective (a-j, 10 parts); Q2-Q7 are subjective, each split a/b,
 // best 4 of 6 question-totals counted — see computeTotals_ below.
 var Q1_FIELDS = ['q1a', 'q1b', 'q1c', 'q1d', 'q1e', 'q1f', 'q1g', 'q1h', 'q1i', 'q1j'];
 var Q_PAIRS = [['q2a', 'q2b'], ['q3a', 'q3b'], ['q4a', 'q4b'], ['q5a', 'q5b'], ['q6a', 'q6b'], ['q7a', 'q7b']];
-var ALL_MARK_FIELDS = Q1_FIELDS.concat(Q_PAIRS.reduce(function (acc, pair) { return acc.concat(pair); }, []));
-var Q_NUMBERS = [2, 3, 4, 5, 6, 7]; // question numbers that carry their own configurable max
+var SUBJECTIVE_FIELDS = Q_PAIRS.reduce(function (acc, pair) { return acc.concat(pair); }, []);
+var ALL_MARK_FIELDS = Q1_FIELDS.concat(SUBJECTIVE_FIELDS);
 
-// Every mark field belongs to Q1 (uniform exam.q1Max) or to one of Q2-Q7,
-// each with its own configurable max (exam.q2Max .. exam.q7Max) — a
-// question's a/b sub-parts always share that question's max.
+var EXAMS_HEADERS = ['Exam ID', 'Exam Name', 'Subject', 'Q1 Max (per sub-question)']
+  .concat(SUBJECTIVE_FIELDS.map(function (f) { return f.charAt(0).toUpperCase() + f.slice(1) + ' Max'; }))
+  .concat(['Assignment Max', 'Marks Tab Name', 'Created At']);
+
+// Every mark field belongs to Q1 (uniform exam.q1Max) or is one of Q2-Q7's
+// a/b sub-parts, each with its own configurable max (exam.q2aMax,
+// exam.q2bMax, ... — the two parts of a question aren't always worth the
+// same marks).
 function maxForField_(exam, field) {
   if (Q1_FIELDS.indexOf(field) !== -1) return exam.q1Max;
-  return exam['q' + field.charAt(1) + 'Max'];
+  return exam[field + 'Max'];
 }
 
 var MARKS_HEADERS = [
@@ -120,9 +119,9 @@ function rowToExam_(row) {
     subject: row[2],
     q1Max: Number(row[3])
   };
-  Q_NUMBERS.forEach(function (n, i) { exam['q' + n + 'Max'] = Number(row[4 + i]); });
-  exam.assignmentMax = Number(row[10]);
-  exam.marksTabName = row[11];
+  SUBJECTIVE_FIELDS.forEach(function (f, i) { exam[f + 'Max'] = Number(row[4 + i]); });
+  exam.assignmentMax = Number(row[4 + SUBJECTIVE_FIELDS.length]);
+  exam.marksTabName = row[5 + SUBJECTIVE_FIELDS.length];
   return exam;
 }
 
@@ -130,7 +129,7 @@ function createExam_(body) {
   var examName = requireString_(body, 'examName');
   var subject = requireString_(body, 'subject');
   var q1Max = requirePositiveNumber_(body, 'q1Max');
-  var qMaxes = Q_NUMBERS.map(function (n) { return requirePositiveNumber_(body, 'q' + n + 'Max'); });
+  var qMaxes = SUBJECTIVE_FIELDS.map(function (f) { return requirePositiveNumber_(body, f + 'Max'); });
   var assignmentMax = requirePositiveNumber_(body, 'assignmentMax');
 
   var examId = uniqueExamId_(examName);
@@ -142,7 +141,7 @@ function createExam_(body) {
   createMarksSheet_(marksTabName);
 
   var exam = { examId: examId, examName: examName, subject: subject, q1Max: q1Max, assignmentMax: assignmentMax };
-  Q_NUMBERS.forEach(function (n, i) { exam['q' + n + 'Max'] = qMaxes[i]; });
+  SUBJECTIVE_FIELDS.forEach(function (f, i) { exam[f + 'Max'] = qMaxes[i]; });
   return exam;
 }
 

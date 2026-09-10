@@ -224,12 +224,6 @@ button.secondary {
   gap: 8px;
 }
 
-.q-max-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-}
-
 .mark-field {
   display: flex;
   flex-direction: column;

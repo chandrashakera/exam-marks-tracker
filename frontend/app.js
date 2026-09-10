@@ -12,14 +12,14 @@ const Q_GROUPS = [
   { label: 'Q6', fields: ['q6a', 'q6b'] },
   { label: 'Q7', fields: ['q7a', 'q7b'] }
 ];
-const ALL_MARK_FIELDS = Q1_FIELDS.concat(Q_GROUPS.reduce((acc, g) => acc.concat(g.fields), []));
-const Q_NUMBERS = [2, 3, 4, 5, 6, 7]; // question numbers that carry their own configurable max
+const SUBJECTIVE_FIELDS = Q_GROUPS.reduce((acc, g) => acc.concat(g.fields), []);
 
-// Q1 shares one uniform max; each of Q2-Q7 has its own (its a/b sub-parts
-// share that question's max) — mirrors maxForField_ in backend/Code.gs.
+// Q1 shares one uniform max; each of Q2-Q7's a/b sub-parts has its own
+// (they aren't always worth the same marks) — mirrors maxForField_ in
+// backend/Code.gs.
 function maxForField(exam, field) {
   if (Q1_FIELDS.includes(field)) return exam.q1Max;
-  return exam['q' + field.charAt(1) + 'Max'];
+  return exam[field + 'Max'];
 }
 
 const state = {
@@ -206,20 +206,28 @@ const createExamError = document.getElementById('createExamError');
 const createExamCancelBtn = document.getElementById('createExamCancelBtn');
 const createExamSubmitBtn = document.getElementById('createExamSubmitBtn');
 
-const newQMaxInputs = {}; // question number -> <input>
-Q_NUMBERS.forEach((n) => {
-  const wrap = document.createElement('div');
-  wrap.className = 'mark-field';
-  wrap.innerHTML = `<label for="newQ${n}Max">Q${n}</label><input id="newQ${n}Max" type="number" step="0.5" min="0" placeholder="e.g. 5">`;
-  newQMaxGrid.appendChild(wrap);
-  newQMaxInputs[n] = wrap.querySelector('input');
+const newQMaxInputs = {}; // field (e.g. 'q2a') -> <input>
+Q_GROUPS.forEach((group) => {
+  const box = document.createElement('div');
+  box.className = 'q-group';
+  box.innerHTML = `<p class="q-group-title"><span>${group.label}</span></p><div class="q-group-fields"></div>`;
+  newQMaxGrid.appendChild(box);
+  const fieldsContainer = box.querySelector('.q-group-fields');
+  group.fields.forEach((field) => {
+    const letter = field.slice(2);
+    const wrap = document.createElement('div');
+    wrap.className = 'mark-field';
+    wrap.innerHTML = `<label for="newMax-${field}">${letter}</label><input id="newMax-${field}" type="number" step="0.5" min="0" placeholder="e.g. 5">`;
+    fieldsContainer.appendChild(wrap);
+    newQMaxInputs[field] = wrap.querySelector('input');
+  });
 });
 
 createExamBtn.addEventListener('click', () => {
   newExamName.value = '';
   newExamSubject.value = '';
   newQ1Max.value = '';
-  Q_NUMBERS.forEach((n) => { newQMaxInputs[n].value = ''; });
+  SUBJECTIVE_FIELDS.forEach((f) => { newQMaxInputs[f].value = ''; });
   newAssignmentMax.value = '';
   createExamError.classList.add('hidden');
   showScreen('createExam');
@@ -239,10 +247,10 @@ async function createExam() {
   const subject = newExamSubject.value.trim();
   const q1Max = Number(newQ1Max.value);
   const qMaxes = {};
-  Q_NUMBERS.forEach((n) => { qMaxes['q' + n + 'Max'] = Number(newQMaxInputs[n].value); });
+  SUBJECTIVE_FIELDS.forEach((f) => { qMaxes[f + 'Max'] = Number(newQMaxInputs[f].value); });
   const assignmentMax = Number(newAssignmentMax.value);
 
-  const allQMaxesValid = Q_NUMBERS.every((n) => qMaxes['q' + n + 'Max'] > 0);
+  const allQMaxesValid = SUBJECTIVE_FIELDS.every((f) => qMaxes[f + 'Max'] > 0);
   if (!examName || !subject || !(q1Max > 0) || !allQMaxesValid || !(assignmentMax > 0)) {
     throw new Error('Please fill in every field with a valid positive number for the max-marks fields.');
   }
@@ -324,7 +332,6 @@ const marksPreviewArea = document.getElementById('marksPreviewArea');
 const marksRollNo = document.getElementById('marksRollNo');
 const marksStatusRow = document.getElementById('marksStatusRow');
 const marksStatus = document.getElementById('marksStatus');
-const q1Grid = document.getElementById('q1Grid');
 const qGroups = document.getElementById('qGroups');
 const subjectiveSection = document.getElementById('subjectiveSection');
 const subjectivePendingHint = document.getElementById('subjectivePendingHint');
@@ -344,20 +351,13 @@ const markErrorEls = {}; // field -> <p class="field-error">
 buildMarksGrid();
 
 function buildMarksGrid() {
-  q1Grid.innerHTML = '';
-  Q1_FIELDS.forEach((field) => {
-    const letter = field.slice(2); // 'q1a' -> 'a'
-    const wrap = document.createElement('div');
-    wrap.className = 'mark-field';
-    wrap.innerHTML = `<label for="mark-${field}">${letter}</label><input id="mark-${field}" type="number" step="0.5" min="0">`;
-    q1Grid.appendChild(wrap);
-    markInputs[field] = wrap.querySelector('input');
-    const errEl = document.createElement('p');
-    errEl.className = 'field-error hidden';
-    wrap.appendChild(errEl);
-    markErrorEls[field] = errEl;
-    markInputs[field].addEventListener('input', () => onMarkFieldInput(field, markInputs[field].max ? Number(markInputs[field].max) : Infinity));
-  });
+  // Q1's ten sub-questions (a-j) always carry the same mark, so this is one
+  // shared field rather than ten — it's expanded back to all of q1a..q1j
+  // when building the submit payload, keeping the Sheet's per-sub-question
+  // columns intact for any downstream per-question attainment mapping.
+  markInputs.q1all = document.getElementById('mark-q1all');
+  markErrorEls.q1all = document.getElementById('error-q1all');
+  markInputs.q1all.addEventListener('input', () => onMarkFieldInput('q1all', markInputs.q1all.max ? Number(markInputs.q1all.max) : Infinity));
 
   qGroups.innerHTML = '';
   Q_GROUPS.forEach((group) => {
@@ -417,9 +417,10 @@ function validateMarkValue(value, max) {
 
 function recomputeTotals() {
   const marks = {};
-  ALL_MARK_FIELDS.forEach((f) => { marks[f] = Number(markInputs[f].value) || 0; });
+  SUBJECTIVE_FIELDS.forEach((f) => { marks[f] = Number(markInputs[f].value) || 0; });
 
-  const objectiveTotal = Q1_FIELDS.reduce((sum, f) => sum + marks[f], 0);
+  // All ten Q1 sub-questions (a-j) share the one entered value.
+  const objectiveTotal = Q1_FIELDS.length * (Number(markInputs.q1all.value) || 0);
 
   const questionTotals = Q_GROUPS.map((g) => marks[g.fields[0]] + marks[g.fields[1]]);
   Q_GROUPS.forEach((g, i) => {
@@ -464,14 +465,15 @@ marksConfirmCheckbox.addEventListener('change', updateSubmitEnablement);
 function updateSubmitEnablement() {
   const rollNoOk = marksRollNo.value.trim().length > 0;
   const assignmentOk = validateAssignmentField();
-  // Students only enter Q1 — Q2-Q7 are faculty-only, so only faculty
-  // screens (manual entry / editing a submission) need those validated.
-  const fieldsToCheck = state.isManualEntry ? ALL_MARK_FIELDS : Q1_FIELDS;
-  const allFieldsOk = fieldsToCheck.every((f) => {
+  // Both roles enter Q1. Q2-Q7 are faculty-only, so only faculty screens
+  // (manual entry / editing a submission) need those validated.
+  const q1Max = state.currentExam ? state.currentExam.q1Max : Infinity;
+  const q1Ok = validateAndShowField('q1all', q1Max);
+  const subjectiveOk = !state.isManualEntry || SUBJECTIVE_FIELDS.every((f) => {
     const max = state.currentExam ? maxForField(state.currentExam, f) : Infinity;
     return validateAndShowField(f, max);
   });
-  marksSubmitBtn.disabled = !(rollNoOk && assignmentOk && allFieldsOk && marksConfirmCheckbox.checked);
+  marksSubmitBtn.disabled = !(rollNoOk && assignmentOk && q1Ok && subjectiveOk && marksConfirmCheckbox.checked);
 }
 
 function enterMarksScreen({ rollNo, marks, status, photo, title }) {
@@ -481,7 +483,15 @@ function enterMarksScreen({ rollNo, marks, status, photo, title }) {
   marksRollNo.value = rollNo || '';
 
   const exam = state.currentExam;
-  ALL_MARK_FIELDS.forEach((f) => {
+
+  // All ten Q1 sub-questions share one mark — q1a is representative (the
+  // backend always writes all of q1a..q1j equal, so any of them would do).
+  markInputs.q1all.max = String(exam.q1Max);
+  markInputs.q1all.value = marks && marks.q1a !== undefined && marks.q1a !== null && marks.q1a !== '' ? String(marks.q1a) : '';
+  markInputs.q1all.classList.remove('invalid');
+  markErrorEls.q1all.classList.add('hidden');
+
+  SUBJECTIVE_FIELDS.forEach((f) => {
     markInputs[f].max = String(maxForField(exam, f));
     markInputs[f].value = marks && marks[f] !== undefined && marks[f] !== null && marks[f] !== '' ? String(marks[f]) : '';
     markInputs[f].classList.remove('invalid');
@@ -533,11 +543,15 @@ async function submitMarks() {
     rollNo: marksRollNo.value.trim(),
     assignment: Number(marksAssignment.value)
   };
+  // The one entered Q1 value applies to all ten a-j sub-questions.
+  const q1Value = Number(markInputs.q1all.value);
+  Q1_FIELDS.forEach((f) => { payload[f] = q1Value; });
   // Students only ever fill in Q1 — omit Q2-Q7 entirely so the backend
   // leaves those fields alone (fallback to existing/0) instead of zeroing
   // out marks faculty may have already entered.
-  const fieldsToSubmit = state.isManualEntry ? ALL_MARK_FIELDS : Q1_FIELDS;
-  fieldsToSubmit.forEach((f) => { payload[f] = Number(markInputs[f].value); });
+  if (state.isManualEntry) {
+    SUBJECTIVE_FIELDS.forEach((f) => { payload[f] = Number(markInputs[f].value); });
+  }
   if (state.isManualEntry && marksStatus.value.trim()) {
     payload.status = marksStatus.value.trim();
   }

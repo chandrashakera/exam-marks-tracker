@@ -37,10 +37,10 @@ frontend/   PWA: index.html, app.js, style.css, config.js, manifest, service wor
 **One master Google Sheet** (`SHEET_ID` script property):
 
 - **`Exams` tab**: `Exam ID | Exam Name | Subject | Q1 Max (per sub-question)
-  | Q2 Max | Q3 Max | Q4 Max | Q5 Max | Q6 Max | Q7 Max | Assignment Max |
-  Marks Tab Name | Created At`. Each of Q2–Q7 has its own configurable max
-  (applies to both its a/b sub-parts) since questions often carry different
-  weights — Q1's max is uniform across all ten a–j sub-questions. Auto-created
+  | Q2a Max | Q2b Max | Q3a Max | Q3b Max | ... | Q7a Max | Q7b Max |
+  Assignment Max | Marks Tab Name | Created At`. Each of Q2–Q7's a/b
+  sub-parts has its own configurable max (they aren't always worth the same
+  marks) — Q1's max is uniform across all ten a–j sub-questions. Auto-created
   (with header) on first exam creation.
 - **One tab per exam** (name = the exam's slugified ID), auto-created when
   the exam is created. Header row: `Roll No. | Q1a...Q1j | Q2a Q2b ... Q7a
@@ -56,6 +56,12 @@ frontend/   PWA: index.html, app.js, style.css, config.js, manifest, service wor
   value, or 0 for a brand-new row), never as "set it to zero" — so a
   student's submission never wipes out subjective marks faculty already
   entered, and vice versa.
+- **Q1 entry**: all ten Q1 sub-questions (a–j) always carry the same mark,
+  so the UI shows one "marks per sub-question" field instead of ten. On
+  submit, that single value is expanded back into all of `q1a`..`q1j` in
+  the payload — the Sheet still stores each sub-question in its own column
+  (for any downstream per-question attainment mapping), the app just
+  doesn't make you type it ten times.
 
 ## Computation rules
 
@@ -77,13 +83,13 @@ The Web App handles five JSON-POST actions on the same `/exec` URL:
 ```json
 { "action": "listExams" }
 ```
-→ `{ "success": true, "exams": [{ "examId", "examName", "subject", "q1Max", "q2Max"..."q7Max", "assignmentMax" }] }`
+→ `{ "success": true, "exams": [{ "examId", "examName", "subject", "q1Max", "q2aMax", "q2bMax", ..., "q7aMax", "q7bMax", "assignmentMax" }] }`
 
 **`createExam`**
 ```json
-{ "action": "createExam", "examName": "Mid-Term 1", "subject": "Data Structures", "q1Max": 1, "q2Max": 5, "q3Max": 5, "q4Max": 5, "q5Max": 5, "q6Max": 5, "q7Max": 5, "assignmentMax": 5 }
+{ "action": "createExam", "examName": "Mid-Term 1", "subject": "Data Structures", "q1Max": 1, "q2aMax": 5, "q2bMax": 5, "...": "...", "q7aMax": 5, "q7bMax": 5, "assignmentMax": 5 }
 ```
-→ `{ "success": true, "exam": { "examId", "examName", "subject", "q1Max", "q2Max"..."q7Max", "assignmentMax" } }`
+→ `{ "success": true, "exam": { "examId", "examName", "subject", "q1Max", "q2aMax", "q2bMax", ..., "q7aMax", "q7bMax", "assignmentMax" } }`
 
 **`listSubmissions`**
 ```json
