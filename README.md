@@ -37,8 +37,11 @@ frontend/   PWA: index.html, app.js, style.css, config.js, manifest, service wor
 **One master Google Sheet** (`SHEET_ID` script property):
 
 - **`Exams` tab**: `Exam ID | Exam Name | Subject | Q1 Max (per sub-question)
-  | Q2-Q7 Max (per sub-question) | Assignment Max | Marks Tab Name |
-  Created At`. Auto-created (with header) on first exam creation.
+  | Q2 Max | Q3 Max | Q4 Max | Q5 Max | Q6 Max | Q7 Max | Assignment Max |
+  Marks Tab Name | Created At`. Each of Q2–Q7 has its own configurable max
+  (applies to both its a/b sub-parts) since questions often carry different
+  weights — Q1's max is uniform across all ten a–j sub-questions. Auto-created
+  (with header) on first exam creation.
 - **One tab per exam** (name = the exam's slugified ID), auto-created when
   the exam is created. Header row: `Roll No. | Q1a...Q1j | Q2a Q2b ... Q7a
   Q7b | Objective Total | Subjective Best-4 Total | Assignment | Final
@@ -74,13 +77,13 @@ The Web App handles five JSON-POST actions on the same `/exec` URL:
 ```json
 { "action": "listExams" }
 ```
-→ `{ "success": true, "exams": [{ "examId", "examName", "subject", "q1Max", "q2to7Max", "assignmentMax" }] }`
+→ `{ "success": true, "exams": [{ "examId", "examName", "subject", "q1Max", "q2Max"..."q7Max", "assignmentMax" }] }`
 
 **`createExam`**
 ```json
-{ "action": "createExam", "examName": "Mid-Term 1", "subject": "Data Structures", "q1Max": 1, "q2to7Max": 5, "assignmentMax": 5 }
+{ "action": "createExam", "examName": "Mid-Term 1", "subject": "Data Structures", "q1Max": 1, "q2Max": 5, "q3Max": 5, "q4Max": 5, "q5Max": 5, "q6Max": 5, "q7Max": 5, "assignmentMax": 5 }
 ```
-→ `{ "success": true, "exam": { "examId", "examName", "subject", "q1Max", "q2to7Max", "assignmentMax" } }`
+→ `{ "success": true, "exam": { "examId", "examName", "subject", "q1Max", "q2Max"..."q7Max", "assignmentMax" } }`
 
 **`listSubmissions`**
 ```json

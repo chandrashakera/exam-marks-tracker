@@ -13,6 +13,14 @@ const Q_GROUPS = [
   { label: 'Q7', fields: ['q7a', 'q7b'] }
 ];
 const ALL_MARK_FIELDS = Q1_FIELDS.concat(Q_GROUPS.reduce((acc, g) => acc.concat(g.fields), []));
+const Q_NUMBERS = [2, 3, 4, 5, 6, 7]; // question numbers that carry their own configurable max
+
+// Q1 shares one uniform max; each of Q2-Q7 has its own (its a/b sub-parts
+// share that question's max) — mirrors maxForField_ in backend/Code.gs.
+function maxForField(exam, field) {
+  if (Q1_FIELDS.includes(field)) return exam.q1Max;
+  return exam['q' + field.charAt(1) + 'Max'];
+}
 
 const state = {
   mode: 'student',        // 'student' | 'faculty'
@@ -192,17 +200,26 @@ async function runOcrPipeline() {
 const newExamName = document.getElementById('newExamName');
 const newExamSubject = document.getElementById('newExamSubject');
 const newQ1Max = document.getElementById('newQ1Max');
-const newQ2to7Max = document.getElementById('newQ2to7Max');
+const newQMaxGrid = document.getElementById('newQMaxGrid');
 const newAssignmentMax = document.getElementById('newAssignmentMax');
 const createExamError = document.getElementById('createExamError');
 const createExamCancelBtn = document.getElementById('createExamCancelBtn');
 const createExamSubmitBtn = document.getElementById('createExamSubmitBtn');
 
+const newQMaxInputs = {}; // question number -> <input>
+Q_NUMBERS.forEach((n) => {
+  const wrap = document.createElement('div');
+  wrap.className = 'mark-field';
+  wrap.innerHTML = `<label for="newQ${n}Max">Q${n}</label><input id="newQ${n}Max" type="number" step="0.5" min="0" placeholder="e.g. 5">`;
+  newQMaxGrid.appendChild(wrap);
+  newQMaxInputs[n] = wrap.querySelector('input');
+});
+
 createExamBtn.addEventListener('click', () => {
   newExamName.value = '';
   newExamSubject.value = '';
   newQ1Max.value = '';
-  newQ2to7Max.value = '';
+  Q_NUMBERS.forEach((n) => { newQMaxInputs[n].value = ''; });
   newAssignmentMax.value = '';
   createExamError.classList.add('hidden');
   showScreen('createExam');
@@ -221,17 +238,19 @@ async function createExam() {
   const examName = newExamName.value.trim();
   const subject = newExamSubject.value.trim();
   const q1Max = Number(newQ1Max.value);
-  const q2to7Max = Number(newQ2to7Max.value);
+  const qMaxes = {};
+  Q_NUMBERS.forEach((n) => { qMaxes['q' + n + 'Max'] = Number(newQMaxInputs[n].value); });
   const assignmentMax = Number(newAssignmentMax.value);
 
-  if (!examName || !subject || !(q1Max > 0) || !(q2to7Max > 0) || !(assignmentMax > 0)) {
+  const allQMaxesValid = Q_NUMBERS.every((n) => qMaxes['q' + n + 'Max'] > 0);
+  if (!examName || !subject || !(q1Max > 0) || !allQMaxesValid || !(assignmentMax > 0)) {
     throw new Error('Please fill in every field with a valid positive number for the max-marks fields.');
   }
 
   createExamSubmitBtn.disabled = true;
   createExamSubmitBtn.textContent = 'Creating...';
   try {
-    const result = await callApi('createExam', { examName, subject, q1Max, q2to7Max, assignmentMax });
+    const result = await callApi('createExam', Object.assign({ examName, subject, q1Max, assignmentMax }, qMaxes));
     setMode('faculty');
     await loadExams(result.exam.examId);
     showScreen('home');
@@ -449,7 +468,7 @@ function updateSubmitEnablement() {
   // screens (manual entry / editing a submission) need those validated.
   const fieldsToCheck = state.isManualEntry ? ALL_MARK_FIELDS : Q1_FIELDS;
   const allFieldsOk = fieldsToCheck.every((f) => {
-    const max = state.currentExam ? (Q1_FIELDS.includes(f) ? state.currentExam.q1Max : state.currentExam.q2to7Max) : Infinity;
+    const max = state.currentExam ? maxForField(state.currentExam, f) : Infinity;
     return validateAndShowField(f, max);
   });
   marksSubmitBtn.disabled = !(rollNoOk && assignmentOk && allFieldsOk && marksConfirmCheckbox.checked);
@@ -463,8 +482,7 @@ function enterMarksScreen({ rollNo, marks, status, photo, title }) {
 
   const exam = state.currentExam;
   ALL_MARK_FIELDS.forEach((f) => {
-    const max = Q1_FIELDS.includes(f) ? exam.q1Max : exam.q2to7Max;
-    markInputs[f].max = String(max);
+    markInputs[f].max = String(maxForField(exam, f));
     markInputs[f].value = marks && marks[f] !== undefined && marks[f] !== null && marks[f] !== '' ? String(marks[f]) : '';
     markInputs[f].classList.remove('invalid');
     markErrorEls[f].classList.add('hidden');

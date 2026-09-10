@@ -6,7 +6,10 @@
  * Code.gs — see that repo for the sibling implementation this mirrors):
  *
  *   - "listExams"        -> { success, exams: [{examId, examName, subject,
- *                             q1Max, q2to7Max, assignmentMax}] }
+ *                             q1Max, q2Max..q7Max, assignmentMax}] } — each
+ *                             of Q2-Q7 has its own max (applies to both its
+ *                             a/b sub-parts), since questions often carry
+ *                             different weights
  *   - "createExam"       -> appends to the Exams tab, creates that exam's
  *                           marks tab with its header row, returns the exam
  *   - "listSubmissions"  -> { success, submissions: [{rollNo, ...marks,
@@ -38,7 +41,9 @@
 var EXAMS_SHEET_NAME = 'Exams';
 var EXAMS_HEADERS = [
   'Exam ID', 'Exam Name', 'Subject', 'Q1 Max (per sub-question)',
-  'Q2-Q7 Max (per sub-question)', 'Assignment Max', 'Marks Tab Name', 'Created At'
+  'Q2 Max (per sub-question)', 'Q3 Max (per sub-question)', 'Q4 Max (per sub-question)',
+  'Q5 Max (per sub-question)', 'Q6 Max (per sub-question)', 'Q7 Max (per sub-question)',
+  'Assignment Max', 'Marks Tab Name', 'Created At'
 ];
 
 // Q1 is objective (a-j, 10 parts); Q2-Q7 are subjective, each split a/b,
@@ -46,6 +51,15 @@ var EXAMS_HEADERS = [
 var Q1_FIELDS = ['q1a', 'q1b', 'q1c', 'q1d', 'q1e', 'q1f', 'q1g', 'q1h', 'q1i', 'q1j'];
 var Q_PAIRS = [['q2a', 'q2b'], ['q3a', 'q3b'], ['q4a', 'q4b'], ['q5a', 'q5b'], ['q6a', 'q6b'], ['q7a', 'q7b']];
 var ALL_MARK_FIELDS = Q1_FIELDS.concat(Q_PAIRS.reduce(function (acc, pair) { return acc.concat(pair); }, []));
+var Q_NUMBERS = [2, 3, 4, 5, 6, 7]; // question numbers that carry their own configurable max
+
+// Every mark field belongs to Q1 (uniform exam.q1Max) or to one of Q2-Q7,
+// each with its own configurable max (exam.q2Max .. exam.q7Max) — a
+// question's a/b sub-parts always share that question's max.
+function maxForField_(exam, field) {
+  if (Q1_FIELDS.indexOf(field) !== -1) return exam.q1Max;
+  return exam['q' + field.charAt(1) + 'Max'];
+}
 
 var MARKS_HEADERS = [
   'Roll No.', 'Q1a', 'Q1b', 'Q1c', 'Q1d', 'Q1e', 'Q1f', 'Q1g', 'Q1h', 'Q1i', 'Q1j',
@@ -100,33 +114,36 @@ function listExams_() {
 }
 
 function rowToExam_(row) {
-  return {
+  var exam = {
     examId: row[0],
     examName: row[1],
     subject: row[2],
-    q1Max: Number(row[3]),
-    q2to7Max: Number(row[4]),
-    assignmentMax: Number(row[5]),
-    marksTabName: row[6]
+    q1Max: Number(row[3])
   };
+  Q_NUMBERS.forEach(function (n, i) { exam['q' + n + 'Max'] = Number(row[4 + i]); });
+  exam.assignmentMax = Number(row[10]);
+  exam.marksTabName = row[11];
+  return exam;
 }
 
 function createExam_(body) {
   var examName = requireString_(body, 'examName');
   var subject = requireString_(body, 'subject');
   var q1Max = requirePositiveNumber_(body, 'q1Max');
-  var q2to7Max = requirePositiveNumber_(body, 'q2to7Max');
+  var qMaxes = Q_NUMBERS.map(function (n) { return requirePositiveNumber_(body, 'q' + n + 'Max'); });
   var assignmentMax = requirePositiveNumber_(body, 'assignmentMax');
 
   var examId = uniqueExamId_(examName);
   var marksTabName = examId; // already sanitized to a safe, unique Sheets tab name
 
   var sheet = getExamsSheet_();
-  sheet.appendRow([examId, examName, subject, q1Max, q2to7Max, assignmentMax, marksTabName, new Date()]);
+  sheet.appendRow([examId, examName, subject, q1Max].concat(qMaxes).concat([assignmentMax, marksTabName, new Date()]));
 
   createMarksSheet_(marksTabName);
 
-  return { examId: examId, examName: examName, subject: subject, q1Max: q1Max, q2to7Max: q2to7Max, assignmentMax: assignmentMax };
+  var exam = { examId: examId, examName: examName, subject: subject, q1Max: q1Max, assignmentMax: assignmentMax };
+  Q_NUMBERS.forEach(function (n, i) { exam['q' + n + 'Max'] = qMaxes[i]; });
+  return exam;
 }
 
 // Slugifies the exam name into a Sheets-tab-safe id, then disambiguates
@@ -305,9 +322,8 @@ function submitMarks_(body) {
 
   var marks = {};
   ALL_MARK_FIELDS.forEach(function (field) {
-    var max = Q1_FIELDS.indexOf(field) !== -1 ? exam.q1Max : exam.q2to7Max;
     var fallback = existing ? existing[field] : 0;
-    marks[field] = resolveMarkValue_(body, field, max, fallback);
+    marks[field] = resolveMarkValue_(body, field, maxForField_(exam, field), fallback);
   });
   var assignment = resolveMarkValue_(body, 'assignment', exam.assignmentMax, existing ? existing.assignment : 0);
   var status = (body.status && String(body.status).trim()) || (existing && existing.status) || STATUS_DEFAULT;
