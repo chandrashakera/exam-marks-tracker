@@ -58,8 +58,19 @@ var GEMINI_MARKS_EXTRACTION_PROMPT =
   '   - Only fill in a value if you can actually make out a number for ' +
   'that sub-question AND can confidently tell which sub-question it ' +
   'belongs to, wherever on the page it was written.\n' +
-  '   - Values are almost always small (single digits or half-marks like ' +
-  '"2.5"). Return the number as a plain string, e.g. "2", "2.5", "0".\n' +
+  '   - Read q1a through q1j INDEPENDENTLY of one another — never assume ' +
+  'they share the same mark just because a few of them do, and never fill ' +
+  'in all ten with one repeated value unless you can actually see that ' +
+  'exact number written for each one individually. It is normal and ' +
+  'expected for different sub-questions to carry different marks, and for ' +
+  'some to be blank while others are filled in.\n' +
+  '   - Values are almost always small (single digits or half-marks). ' +
+  'HALF-MARKS ARE COMMON — look carefully for a "½" glyph, a small ' +
+  'superscript/subscript "1/2", or a short diagonal/fraction stroke after ' +
+  'a digit (e.g. "1½", "3.5", "0.5") before assuming a value is a whole ' +
+  'number; these are easy to miss or misread as the whole number alone ' +
+  'when the mark is small or faint. Return the number as a plain string ' +
+  'using decimal notation, e.g. "2", "2.5", "0", "0.5".\n' +
   '   - If a sub-question\'s mark is blank, crossed out, illegible, or you ' +
   'cannot confidently tell which sub-question a handwritten number ' +
   'belongs to, return "" for that field rather than guessing. An empty ' +

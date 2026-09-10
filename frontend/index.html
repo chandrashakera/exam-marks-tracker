@@ -80,13 +80,30 @@
   <section id="screen-preview" class="screen hidden">
     <h1>Review your capture</h1>
     <div id="previewArea" class="preview-area"></div>
-    <p class="hint">If the sheet looks sideways or upside-down, tap "Rotate" until it's upright &mdash; this helps marks get read correctly.</p>
+    <p class="hint">If the sheet looks sideways or upside-down, tap "Rotate" until it's upright. For best accuracy, tap "Crop / Zoom" and draw a tight box around just the H.T. No. and marks numbers &mdash; small handwriting (especially half-marks like 0.5) reads far more accurately when it fills more of the photo.</p>
     <div class="button-row">
       <button id="rotateBtn" type="button" class="secondary">Rotate 90&deg;</button>
+      <button id="cropBtn" type="button" class="secondary">Crop / Zoom to Marks</button>
     </div>
     <div class="button-row">
       <button id="retakeBtn" type="button" class="secondary">Retake</button>
       <button id="proceedBtn" type="button">Proceed</button>
+    </div>
+  </section>
+
+  <!-- Screen 3b: Crop -->
+  <section id="screen-crop" class="screen hidden">
+    <h1>Crop to marks area</h1>
+    <p class="hint">Drag a box tightly around the H.T. No. box and the marks numbers, then confirm.</p>
+    <div class="crop-wrap">
+      <canvas id="cropCanvas"></canvas>
+    </div>
+    <div class="button-row">
+      <button id="cropResetBtn" type="button" class="secondary">Reset Selection</button>
+      <button id="cropCancelBtn" type="button" class="secondary">Cancel</button>
+    </div>
+    <div class="button-row">
+      <button id="cropConfirmBtn" type="button" disabled>Use This Crop</button>
     </div>
   </section>
 

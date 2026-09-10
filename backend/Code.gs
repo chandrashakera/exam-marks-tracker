@@ -67,7 +67,16 @@ var MARKS_HEADERS = [
 ];
 
 var STATUS_DEFAULT = 'Submitted';
-var GEMINI_MODEL_DEFAULT = 'gemini-3.1-flash-lite';
+// Not flash-lite: reading fine handwritten detail (esp. half-marks like
+// 1.5) needs a stronger model. Tried and rejected: 'gemini-3.1-pro' (404,
+// not a valid model id), 'gemini-pro-latest' (resolves to gemini-3.1-pro,
+// which has zero free-tier quota on this API key), 'gemini-flash-latest'
+// (repeatedly 503 UNAVAILABLE — sustained overload), 'gemini-2.5-flash'
+// (404, deprecated for new users). 'gemini-3.6-flash' works on this key's
+// free tier and measurably improves accuracy over flash-lite: it respects
+// blank fields instead of fabricating uniform values, and gets more
+// half-marks right.
+var GEMINI_MODEL_DEFAULT = 'gemini-3.6-flash';
 
 function doPost(e) {
   try {

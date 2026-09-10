@@ -46,6 +46,7 @@ const screens = {
   home: document.getElementById('screen-home'),
   createExam: document.getElementById('screen-create-exam'),
   preview: document.getElementById('screen-preview'),
+  crop: document.getElementById('screen-crop'),
   processing: document.getElementById('screen-processing'),
   submissions: document.getElementById('screen-submissions'),
   marks: document.getElementById('screen-marks'),
@@ -240,6 +241,160 @@ retakeBtn.addEventListener('click', () => {
   state.photoFile = null;
   state.photoRotation = 0;
   showScreen('home');
+});
+
+// ---- Crop screen ----
+// A full-page photo squeezes small handwritten marks (esp. half-marks like
+// "1.5") into a handful of pixels. Letting the user crop tightly around just
+// the H.T. No. + marks numbers, then upscaling that crop, gives the OCR
+// model far more visual detail per digit than the uncropped photo would.
+const cropBtn = document.getElementById('cropBtn');
+const cropCanvas = document.getElementById('cropCanvas');
+const cropCtx = cropCanvas.getContext('2d');
+const cropResetBtn = document.getElementById('cropResetBtn');
+const cropCancelBtn = document.getElementById('cropCancelBtn');
+const cropConfirmBtn = document.getElementById('cropConfirmBtn');
+
+let cropImage = null;        // full-resolution Image being cropped
+let cropDisplayScale = 1;    // canvas (display) pixels per source-image pixel
+let cropSelection = null;    // {x, y, w, h} in canvas/display pixel coords
+let cropDragging = false;
+let cropDragStart = null;
+
+cropBtn.addEventListener('click', () => {
+  openCropScreen().catch(() => {
+    // Non-fatal: skip cropping and keep using the uncropped capture.
+  });
+});
+
+async function openCropScreen() {
+  const objectUrl = URL.createObjectURL(state.photoFile);
+  const img = new Image();
+  await new Promise((resolve, reject) => {
+    img.onload = resolve;
+    img.onerror = () => reject(new Error('Could not load the image to crop.'));
+    img.src = objectUrl;
+  });
+  URL.revokeObjectURL(objectUrl);
+  cropImage = img;
+
+  const maxDisplayWidth = Math.min(440, window.innerWidth - 40);
+  cropDisplayScale = Math.min(1, maxDisplayWidth / img.naturalWidth);
+  cropCanvas.width = Math.round(img.naturalWidth * cropDisplayScale);
+  cropCanvas.height = Math.round(img.naturalHeight * cropDisplayScale);
+
+  cropSelection = null;
+  cropConfirmBtn.disabled = true;
+  drawCropCanvas();
+  showScreen('crop');
+}
+
+function drawCropCanvas() {
+  cropCtx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
+  cropCtx.drawImage(cropImage, 0, 0, cropCanvas.width, cropCanvas.height);
+  if (!cropSelection) return;
+
+  cropCtx.save();
+  cropCtx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+  cropCtx.fillRect(0, 0, cropCanvas.width, cropCanvas.height);
+  cropCtx.clearRect(cropSelection.x, cropSelection.y, cropSelection.w, cropSelection.h);
+  cropCtx.drawImage(
+    cropImage,
+    cropSelection.x / cropDisplayScale, cropSelection.y / cropDisplayScale,
+    cropSelection.w / cropDisplayScale, cropSelection.h / cropDisplayScale,
+    cropSelection.x, cropSelection.y, cropSelection.w, cropSelection.h
+  );
+  cropCtx.strokeStyle = '#1565c0';
+  cropCtx.lineWidth = 2;
+  cropCtx.strokeRect(cropSelection.x, cropSelection.y, cropSelection.w, cropSelection.h);
+  cropCtx.restore();
+}
+
+function cropPointerPos(evt) {
+  const rect = cropCanvas.getBoundingClientRect();
+  const point = evt.touches && evt.touches.length ? evt.touches[0] : evt;
+  const scaleX = cropCanvas.width / rect.width;
+  const scaleY = cropCanvas.height / rect.height;
+  return {
+    x: Math.min(Math.max((point.clientX - rect.left) * scaleX, 0), cropCanvas.width),
+    y: Math.min(Math.max((point.clientY - rect.top) * scaleY, 0), cropCanvas.height)
+  };
+}
+
+function cropDragStartHandler(evt) {
+  evt.preventDefault();
+  cropDragging = true;
+  cropDragStart = cropPointerPos(evt);
+  cropSelection = { x: cropDragStart.x, y: cropDragStart.y, w: 0, h: 0 };
+}
+
+function cropDragMoveHandler(evt) {
+  if (!cropDragging) return;
+  evt.preventDefault();
+  const pos = cropPointerPos(evt);
+  cropSelection = {
+    x: Math.min(cropDragStart.x, pos.x),
+    y: Math.min(cropDragStart.y, pos.y),
+    w: Math.abs(pos.x - cropDragStart.x),
+    h: Math.abs(pos.y - cropDragStart.y)
+  };
+  drawCropCanvas();
+}
+
+function cropDragEndHandler() {
+  cropDragging = false;
+  cropConfirmBtn.disabled = !cropSelection || cropSelection.w < 10 || cropSelection.h < 10;
+}
+
+cropCanvas.addEventListener('mousedown', cropDragStartHandler);
+cropCanvas.addEventListener('mousemove', cropDragMoveHandler);
+window.addEventListener('mouseup', cropDragEndHandler);
+cropCanvas.addEventListener('touchstart', cropDragStartHandler, { passive: false });
+cropCanvas.addEventListener('touchmove', cropDragMoveHandler, { passive: false });
+cropCanvas.addEventListener('touchend', cropDragEndHandler);
+
+cropResetBtn.addEventListener('click', () => {
+  cropSelection = null;
+  cropConfirmBtn.disabled = true;
+  drawCropCanvas();
+});
+
+cropCancelBtn.addEventListener('click', () => {
+  cropImage = null;
+  showScreen('preview');
+});
+
+cropConfirmBtn.addEventListener('click', () => {
+  if (!cropSelection || !cropImage) return;
+  const naturalX = cropSelection.x / cropDisplayScale;
+  const naturalY = cropSelection.y / cropDisplayScale;
+  const naturalW = cropSelection.w / cropDisplayScale;
+  const naturalH = cropSelection.h / cropDisplayScale;
+
+  // Upscale a tight crop so it still gives the OCR model a reasonably
+  // large image — cropping tight but leaving it tiny would defeat the
+  // point.
+  const targetMinDimension = 900;
+  const upscale = Math.max(1, targetMinDimension / Math.max(naturalW, naturalH));
+
+  const outCanvas = document.createElement('canvas');
+  outCanvas.width = Math.round(naturalW * upscale);
+  outCanvas.height = Math.round(naturalH * upscale);
+  const outCtx = outCanvas.getContext('2d');
+  outCtx.drawImage(cropImage, naturalX, naturalY, naturalW, naturalH, 0, 0, outCanvas.width, outCanvas.height);
+
+  outCanvas.toBlob((blob) => {
+    if (!blob) return;
+    const croppedFile = new File([blob], state.photoFile.name || 'marks-sheet-cropped.jpg', { type: 'image/jpeg' });
+    // The crop becomes the new baseline: further rotation should rotate
+    // the cropped result, not jump back to the pre-crop original.
+    state.originalPhotoFile = croppedFile;
+    state.photoRotation = 0;
+    state.photoFile = croppedFile;
+    cropImage = null;
+    renderPreview(croppedFile, previewArea);
+    showScreen('preview');
+  }, 'image/jpeg', 0.95);
 });
 
 proceedBtn.addEventListener('click', () => {
