@@ -16,6 +16,10 @@
 
 var GEMINI_MARKS_EXTRACTION_PROMPT =
   'You are extracting data from a photograph of a student\'s exam answer-book cover/marks sheet.\n\n' +
+  'The photo may have been captured rotated (sideways or upside-down) ' +
+  'relative to how the sheet is meant to be read. Mentally reorient it ' +
+  'first — read every piece of text and every number as if the sheet were ' +
+  'upright, regardless of the orientation it was actually photographed in.\n\n' +
   'Return ONLY a single JSON object. No markdown code fences, no explanation, no leading or trailing text — just the raw JSON object, parseable by JSON.parse().\n\n' +
   'The JSON object must have exactly these 23 keys, matching these exact names:\n\n' +
   '{\n' +
@@ -36,18 +40,31 @@ var GEMINI_MARKS_EXTRACTION_PROMPT =
   'character, in order left to right. If truly illegible, return "" rather ' +
   'than guessing — never fabricate a plausible-looking roll number.\n\n' +
   '2. "q1a" through "q1j", and "q2a"/"q2b" through "q7a"/"q7b" — these are ' +
-  'marks hand-written by an evaluator, usually in a small margin table next ' +
-  'to each question/sub-question label (e.g. "Q1(a)", "Q2(a)", "Q7(b)"). ' +
+  'marks hand-written by an evaluator. Check BOTH of these places, in ' +
+  'order:\n' +
+  '   a. First, the printed per-question marks table/cells next to each ' +
+  'question/sub-question label (e.g. "Q1(a)", "Q2(a)", "Q7(b)") — this is ' +
+  'the normal location.\n' +
+  '   b. If those printed cells are empty, look elsewhere on the page for ' +
+  'a handwritten list or tally of marks the evaluator wrote by hand ' +
+  'instead of using the printed table — e.g. down a side margin, near a ' +
+  '"Part-A"/"Part-B" label, sometimes written sideways/rotated relative to ' +
+  'the rest of the page. If you find one, try to match each written number ' +
+  'to the sub-question it belongs to using its position/order on the page ' +
+  'and any nearby question labels.\n' +
   'These are OPTIONAL and LOWER CONFIDENCE than the roll number — they are ' +
   'never treated as final; a person always reviews and corrects every one ' +
   'before it is saved. So:\n' +
-  '   - Only fill in a value if you can actually make out a number in that ' +
-  'question\'s marks cell.\n' +
+  '   - Only fill in a value if you can actually make out a number for ' +
+  'that sub-question AND can confidently tell which sub-question it ' +
+  'belongs to, wherever on the page it was written.\n' +
   '   - Values are almost always small (single digits or half-marks like ' +
   '"2.5"). Return the number as a plain string, e.g. "2", "2.5", "0".\n' +
-  '   - If a sub-question\'s mark is blank, crossed out, or illegible, ' +
-  'return "" for that field. An empty string is the correct, expected ' +
-  'answer for most fields most of the time — do not treat it as a failure.\n' +
+  '   - If a sub-question\'s mark is blank, crossed out, illegible, or you ' +
+  'cannot confidently tell which sub-question a handwritten number ' +
+  'belongs to, return "" for that field rather than guessing. An empty ' +
+  'string is the correct, expected answer for most fields most of the ' +
+  'time — do not treat it as a failure.\n' +
   '   - Do not infer a mark from surrounding context (e.g. do not assume ' +
   'full marks because the answer looks complete) — only report a mark that ' +
   'is actually written down.\n\n' +

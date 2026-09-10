@@ -26,7 +26,9 @@ const state = {
   mode: 'student',        // 'student' | 'faculty'
   exams: [],
   currentExam: null,      // the selected exam's config object
-  photoFile: null,        // captured/uploaded File (scan/upload flow only)
+  originalPhotoFile: null,// the raw captured/uploaded File, never rotated in place
+  photoFile: null,        // originalPhotoFile rotated by photoRotation — what's OCR'd/submitted
+  photoRotation: 0,       // 0 | 90 | 180 | 270, user-corrected via the Rotate button
   editingRollNo: null     // set when faculty is editing an existing submission
 };
 
@@ -142,6 +144,8 @@ studentManualEntryBtn.addEventListener('click', () => {
 
 function handleFileSelected(file) {
   if (!file) return;
+  state.originalPhotoFile = file;
+  state.photoRotation = 0;
   state.photoFile = file;
   cameraInput.value = '';
   fileInput.value = '';
@@ -151,6 +155,7 @@ function handleFileSelected(file) {
 
 // ---- Preview screen ----
 const previewArea = document.getElementById('previewArea');
+const rotateBtn = document.getElementById('rotateBtn');
 const retakeBtn = document.getElementById('retakeBtn');
 const proceedBtn = document.getElementById('proceedBtn');
 
@@ -175,8 +180,65 @@ function renderPreview(file, container) {
   container.appendChild(fullSizeLink);
 }
 
+// Rotates the ORIGINAL capture by `degrees` (not the already-rotated
+// preview) and redraws it onto a canvas, so repeated rotation never
+// compounds quality loss from re-encoding an already-rotated JPEG.
+function rotateFileImage(file, degrees) {
+  return new Promise((resolve, reject) => {
+    const normalized = ((degrees % 360) + 360) % 360;
+    if (normalized === 0) {
+      resolve(file);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const swap = normalized === 90 || normalized === 270;
+      const canvas = document.createElement('canvas');
+      canvas.width = swap ? img.naturalHeight : img.naturalWidth;
+      canvas.height = swap ? img.naturalWidth : img.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((normalized * Math.PI) / 180);
+      ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+      URL.revokeObjectURL(objectUrl);
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          reject(new Error('Could not rotate the image.'));
+          return;
+        }
+        resolve(new File([blob], file.name || 'marks-sheet.jpg', { type: 'image/jpeg' }));
+      }, 'image/jpeg', 0.92);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('Could not load the image to rotate it.'));
+    };
+    img.src = objectUrl;
+  });
+}
+
+rotateBtn.addEventListener('click', () => {
+  rotateBtn.disabled = true;
+  const nextRotation = (state.photoRotation + 90) % 360;
+  rotateFileImage(state.originalPhotoFile, nextRotation)
+    .then((rotated) => {
+      state.photoRotation = nextRotation;
+      state.photoFile = rotated;
+      renderPreview(rotated, previewArea);
+    })
+    .catch(() => {
+      // Non-fatal: the un-rotated capture is still usable as-is.
+    })
+    .finally(() => {
+      rotateBtn.disabled = false;
+    });
+});
+
 retakeBtn.addEventListener('click', () => {
+  state.originalPhotoFile = null;
   state.photoFile = null;
+  state.photoRotation = 0;
   showScreen('home');
 });
 
@@ -586,7 +648,9 @@ const doneMessage = document.getElementById('doneMessage');
 const submitAnotherBtn = document.getElementById('submitAnotherBtn');
 
 submitAnotherBtn.addEventListener('click', () => {
+  state.originalPhotoFile = null;
   state.photoFile = null;
+  state.photoRotation = 0;
   state.editingRollNo = null;
   showScreen('home');
 });
