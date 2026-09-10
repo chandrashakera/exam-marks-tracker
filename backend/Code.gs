@@ -129,7 +129,9 @@ function createExam_(body) {
   var examName = requireString_(body, 'examName');
   var subject = requireString_(body, 'subject');
   var q1Max = requirePositiveNumber_(body, 'q1Max');
-  var qMaxes = SUBJECTIVE_FIELDS.map(function (f) { return requirePositiveNumber_(body, f + 'Max'); });
+  // 0 is a valid max here — it means that particular sub-question isn't
+  // used in this exam (e.g. only Q6a exists, not Q6b), not a missing field.
+  var qMaxes = SUBJECTIVE_FIELDS.map(function (f) { return requireNonNegativeNumber_(body, f + 'Max'); });
   var assignmentMax = requirePositiveNumber_(body, 'assignmentMax');
 
   var examId = uniqueExamId_(examName);
@@ -389,6 +391,19 @@ function requirePositiveNumber_(body, key) {
   var value = Number(body[key]);
   if (!isFinite(value) || value <= 0) {
     throw new Error('Invalid or missing field: ' + key + ' (must be a positive number)');
+  }
+  return value;
+}
+
+// Like requirePositiveNumber_, but 0 is valid — used for a sub-question's
+// max where 0 legitimately means "not used in this exam", not "missing".
+function requireNonNegativeNumber_(body, key) {
+  if (body[key] === undefined || body[key] === null || String(body[key]).trim() === '') {
+    throw new Error('Missing field: ' + key);
+  }
+  var value = Number(body[key]);
+  if (!isFinite(value) || value < 0) {
+    throw new Error('Invalid field: ' + key + ' (must be a non-negative number)');
   }
   return value;
 }

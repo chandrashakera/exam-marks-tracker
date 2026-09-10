@@ -250,9 +250,11 @@ async function createExam() {
   SUBJECTIVE_FIELDS.forEach((f) => { qMaxes[f + 'Max'] = Number(newQMaxInputs[f].value); });
   const assignmentMax = Number(newAssignmentMax.value);
 
-  const allQMaxesValid = SUBJECTIVE_FIELDS.every((f) => qMaxes[f + 'Max'] > 0);
+  // 0 is a valid max here — it means that sub-question isn't used in this
+  // exam (e.g. only Q6a exists, not Q6b), not a missing field.
+  const allQMaxesValid = SUBJECTIVE_FIELDS.every((f) => newQMaxInputs[f].value.trim() !== '' && qMaxes[f + 'Max'] >= 0);
   if (!examName || !subject || !(q1Max > 0) || !allQMaxesValid || !(assignmentMax > 0)) {
-    throw new Error('Please fill in every field with a valid positive number for the max-marks fields.');
+    throw new Error('Please fill in every field (Q2–Q7 sub-question maxes may be 0 if unused).');
   }
 
   createExamSubmitBtn.disabled = true;
