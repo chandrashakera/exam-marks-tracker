@@ -307,6 +307,8 @@ const marksStatusRow = document.getElementById('marksStatusRow');
 const marksStatus = document.getElementById('marksStatus');
 const q1Grid = document.getElementById('q1Grid');
 const qGroups = document.getElementById('qGroups');
+const subjectiveSection = document.getElementById('subjectiveSection');
+const subjectivePendingHint = document.getElementById('subjectivePendingHint');
 const marksAssignment = document.getElementById('marksAssignment');
 const totalObjective = document.getElementById('totalObjective');
 const totalBestFour = document.getElementById('totalBestFour');
@@ -408,12 +410,19 @@ function recomputeTotals() {
   const bestFourTotal = sortedTotals.slice(0, 4).reduce((sum, v) => sum + v, 0);
 
   const assignment = Number(marksAssignment.value) || 0;
+  totalObjective.textContent = String(objectiveTotal);
+  totalAssignment.textContent = String(assignment);
+
+  if (!state.isManualEntry) {
+    // Students never enter Q2-Q7 — those totals aren't known yet.
+    totalBestFour.textContent = 'Pending';
+    totalFinal.textContent = 'Pending (Q2–Q7 added by faculty)';
+    return;
+  }
+
   const rawTotal = objectiveTotal + bestFourTotal + assignment;
   const finalTotal = Number.isInteger(rawTotal) ? rawTotal : Math.ceil(rawTotal);
-
-  totalObjective.textContent = String(objectiveTotal);
   totalBestFour.textContent = String(bestFourTotal);
-  totalAssignment.textContent = String(assignment);
   totalFinal.textContent = String(finalTotal);
 }
 
@@ -436,7 +445,10 @@ marksConfirmCheckbox.addEventListener('change', updateSubmitEnablement);
 function updateSubmitEnablement() {
   const rollNoOk = marksRollNo.value.trim().length > 0;
   const assignmentOk = validateAssignmentField();
-  const allFieldsOk = ALL_MARK_FIELDS.every((f) => {
+  // Students only enter Q1 — Q2-Q7 are faculty-only, so only faculty
+  // screens (manual entry / editing a submission) need those validated.
+  const fieldsToCheck = state.isManualEntry ? ALL_MARK_FIELDS : Q1_FIELDS;
+  const allFieldsOk = fieldsToCheck.every((f) => {
     const max = state.currentExam ? (Q1_FIELDS.includes(f) ? state.currentExam.q1Max : state.currentExam.q2to7Max) : Infinity;
     return validateAndShowField(f, max);
   });
@@ -463,6 +475,10 @@ function enterMarksScreen({ rollNo, marks, status, photo, title }) {
 
   marksStatusRow.classList.toggle('hidden', !state.isManualEntry);
   marksStatus.value = status || '';
+
+  // Q2-Q7 (subjective) are faculty-only — students never see or submit them.
+  subjectiveSection.classList.toggle('hidden', !state.isManualEntry);
+  subjectivePendingHint.classList.toggle('hidden', state.isManualEntry);
 
   if (photo) {
     marksPreviewArea.classList.remove('hidden');
@@ -499,7 +515,11 @@ async function submitMarks() {
     rollNo: marksRollNo.value.trim(),
     assignment: Number(marksAssignment.value)
   };
-  ALL_MARK_FIELDS.forEach((f) => { payload[f] = Number(markInputs[f].value); });
+  // Students only ever fill in Q1 — omit Q2-Q7 entirely so the backend
+  // leaves those fields alone (fallback to existing/0) instead of zeroing
+  // out marks faculty may have already entered.
+  const fieldsToSubmit = state.isManualEntry ? ALL_MARK_FIELDS : Q1_FIELDS;
+  fieldsToSubmit.forEach((f) => { payload[f] = Number(markInputs[f].value); });
   if (state.isManualEntry && marksStatus.value.trim()) {
     payload.status = marksStatus.value.trim();
   }

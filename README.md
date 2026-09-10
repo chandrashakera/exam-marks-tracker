@@ -2,11 +2,11 @@
 
 Zero-cost PWA for capturing per-question exam marks from physical answer
 sheets straight into the Google Sheet that already does attainment
-calculation for that exam. A student (or faculty, editing/correcting)
-scans or uploads a photo of the marks sheet, Gemini reads the boxed roll
-number (and, best-effort, the margin-written per-question marks), the
-entry grid is checked/corrected against the physical sheet, and the row
-lands directly in that exam's Sheet tab.
+calculation for that exam. A student scans or uploads a photo of the marks
+sheet; Gemini reads the boxed roll number and, best-effort, the Q1
+(objective) marks; the student checks/corrects those against the physical
+sheet and submits. Q2–Q7 (subjective, evaluator-graded) marks are entered
+separately by faculty. Every row lands directly in that exam's Sheet tab.
 
 Sibling app: [student-achievement-tracker](https://github.com/chandrashakera/student-achievement-tracker)
 — same architecture (Apps Script Web App backend, no server, no login,
@@ -45,6 +45,14 @@ frontend/   PWA: index.html, app.js, style.css, config.js, manifest, service wor
   Total | Status`.
 - Rows are keyed by Roll No. within an exam's tab — submitting the same
   roll no. again updates that row in place rather than duplicating it.
+- **Field ownership**: students only ever enter Roll No., Q1 (objective),
+  and Assignment. Q2–Q7 (subjective, evaluator-graded) are faculty-only —
+  entered later via Faculty mode's manual entry / edit-submission screen.
+  A student's `submitMarks` call omits Q2–Q7 entirely; the backend treats a
+  missing field as "leave it alone" (falls back to that row's existing
+  value, or 0 for a brand-new row), never as "set it to zero" — so a
+  student's submission never wipes out subjective marks faculty already
+  entered, and vice versa.
 
 ## Computation rules
 
@@ -86,10 +94,15 @@ The Web App handles five JSON-POST actions on the same `/exec` URL:
 ```
 → `{ "success": true, "fields": { "rollNo", "q1a"..."q7b" } }` — every field best-effort, `""` when illegible, never authoritative.
 
-**`submitMarks`** (upsert by Roll No.)
+**`submitMarks`** (upsert by Roll No., partial update — see "Field ownership" above)
 ```json
-{ "action": "submitMarks", "examId": "mid-term-1", "rollNo": "21A91A0501", "q1a": 1, "...": "...", "q7b": 4.5, "assignment": 5, "status": "Submitted" }
+{ "action": "submitMarks", "examId": "mid-term-1", "rollNo": "21A91A0501", "q1a": 1, "...": "...", "q1j": 1, "assignment": 5 }
 ```
+Any mark field may be omitted; an omitted field falls back to that row's
+existing stored value (or 0 if the row doesn't exist yet). A student
+submission typically sends only Q1 + Assignment; a faculty edit sends
+whatever fields they're correcting, Q2–Q7 included.
+
 → `{ "success": true, "objectiveTotal": 9, "bestFourTotal": 34, "finalTotal": 48 }`
 
 All errors: `{ "success": false, "error": "..." }`.

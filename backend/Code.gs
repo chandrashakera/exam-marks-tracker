@@ -16,7 +16,14 @@
  *                           best-effort { rollNo, q1a..q7b } (never
  *                           authoritative — every field is user-editable)
  *   - "submitMarks"      -> validates + recomputes totals server-side,
- *                           upserts (by Roll No.) into the exam's marks tab
+ *                           upserts (by Roll No.) into the exam's marks tab.
+ *                           Any mark field may be omitted (e.g. students
+ *                           submit only Q1 + Assignment; Q2-Q7 are entered
+ *                           later by faculty) — an omitted field falls back
+ *                           to that row's existing stored value, or 0 for a
+ *                           brand-new row. This makes submitMarks a partial
+ *                           update, never a silent overwrite of a field the
+ *                           caller didn't send.
  *
  * ---- ONE-TIME SETUP (before deploying) ----
  * Project Settings (gear icon) > Script Properties > add:
@@ -291,14 +298,19 @@ function submitMarks_(body) {
   var examId = requireString_(body, 'examId');
   var rollNo = requireString_(body, 'rollNo');
   var exam = getExamById_(examId);
+  var sheet = getMarksSheet_(examId);
+
+  var rowIndex = findRowIndexByRollNo_(sheet, rollNo);
+  var existing = rowIndex === -1 ? null : rowToSubmission_(sheet.getRange(rowIndex, 1, 1, MARKS_HEADERS.length).getValues()[0]);
 
   var marks = {};
   ALL_MARK_FIELDS.forEach(function (field) {
     var max = Q1_FIELDS.indexOf(field) !== -1 ? exam.q1Max : exam.q2to7Max;
-    marks[field] = requireValidMark_(body, field, max);
+    var fallback = existing ? existing[field] : 0;
+    marks[field] = resolveMarkValue_(body, field, max, fallback);
   });
-  var assignment = requireValidMark_(body, 'assignment', exam.assignmentMax);
-  var status = (body.status && String(body.status).trim()) || STATUS_DEFAULT;
+  var assignment = resolveMarkValue_(body, 'assignment', exam.assignmentMax, existing ? existing.assignment : 0);
+  var status = (body.status && String(body.status).trim()) || (existing && existing.status) || STATUS_DEFAULT;
 
   var totals = computeTotals_(marks, assignment);
 
@@ -306,7 +318,11 @@ function submitMarks_(body) {
     .concat(ALL_MARK_FIELDS.map(function (f) { return marks[f]; }))
     .concat([totals.objectiveTotal, totals.bestFourTotal, assignment, totals.finalTotal, status]);
 
-  upsertMarksRow_(getMarksSheet_(examId), rollNo, row);
+  if (rowIndex === -1) {
+    sheet.appendRow(row);
+  } else {
+    sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
+  }
 
   return {
     success: true,
@@ -314,6 +330,16 @@ function submitMarks_(body) {
     bestFourTotal: totals.bestFourTotal,
     finalTotal: totals.finalTotal
   };
+}
+
+function findRowIndexByRollNo_(sheet, rollNo) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return -1;
+  var rollNos = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  for (var i = 0; i < rollNos.length; i++) {
+    if (String(rollNos[i][0]) === rollNo) return i + 2; // +2: 1-indexed, plus header row
+  }
+  return -1;
 }
 
 // questionTotal(a,b) = a+b; bestFourTotal = sum of the 4 highest of the 6
@@ -330,25 +356,6 @@ function computeTotals_(marks, assignment) {
   var finalTotal = Number.isInteger(rawTotal) ? rawTotal : Math.ceil(rawTotal);
 
   return { objectiveTotal: objectiveTotal, bestFourTotal: bestFourTotal, finalTotal: finalTotal };
-}
-
-function upsertMarksRow_(sheet, rollNo, row) {
-  var lastRow = sheet.getLastRow();
-  var rowIndex = -1;
-  if (lastRow >= 2) {
-    var rollNos = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
-    for (var i = 0; i < rollNos.length; i++) {
-      if (String(rollNos[i][0]) === rollNo) {
-        rowIndex = i + 2; // +2: 1-indexed, plus header row
-        break;
-      }
-    }
-  }
-  if (rowIndex === -1) {
-    sheet.appendRow(row);
-  } else {
-    sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
-  }
 }
 
 // ---------------------------------------------------------------------
@@ -372,10 +379,14 @@ function requirePositiveNumber_(body, key) {
 }
 
 // Every mark (and Assignment) must be a non-negative multiple of 0.5, no
-// greater than that field's configured max for this exam.
-function requireValidMark_(body, key, max) {
+// greater than that field's configured max for this exam. A field the
+// caller didn't send (e.g. a student submitting only Q1, leaving Q2-Q7 for
+// faculty) falls back to that row's existing stored value, or 0 for a
+// brand-new row — omitting a field is never an error, and never silently
+// zeroes out a value someone else already entered.
+function resolveMarkValue_(body, key, max, fallback) {
   if (body[key] === undefined || body[key] === null || String(body[key]).trim() === '') {
-    throw new Error('Missing required field: ' + key);
+    return Number(fallback) || 0;
   }
   var value = Number(body[key]);
   if (!isFinite(value) || value < 0) {
