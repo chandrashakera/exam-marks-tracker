@@ -261,12 +261,23 @@ function callGeminiForStructuring_(imageBase64, mimeType) {
     generationConfig: { responseMimeType: 'application/json' }
   };
 
-  var response = UrlFetchApp.fetch(url, {
+  var fetchOptions = {
     method: 'post',
     contentType: 'application/json',
     payload: JSON.stringify(payload),
     muteHttpExceptions: true
-  });
+  };
+
+  // Gemini occasionally returns 503/429 under load; these are transient,
+  // so retry a couple of times with backoff before surfacing an error.
+  var maxAttempts = 3;
+  var response;
+  for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+    response = UrlFetchApp.fetch(url, fetchOptions);
+    var attemptStatus = response.getResponseCode();
+    if (attemptStatus !== 503 && attemptStatus !== 429) break;
+    if (attempt < maxAttempts) Utilities.sleep(1000 * attempt);
+  }
 
   var status = response.getResponseCode();
   if (status < 200 || status >= 300) {
