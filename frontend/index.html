@@ -33,12 +33,15 @@
     <div id="studentActions" class="button-stack">
       <button id="scanBtn" type="button" disabled>Scan Marks Sheet</button>
       <button id="uploadBtn" type="button" disabled>Upload Marks Sheet</button>
+      <button id="studentManualEntryBtn" type="button" class="secondary" disabled>Enter Marks Manually</button>
     </div>
-    <p id="studentHint" class="hint" style="margin-top: 10px;">After in-person verification with faculty: scan or upload a photo of your marks sheet. Good lighting and filling the frame around the H.T. No. box gives the most accurate reading.</p>
+    <p id="studentHint" class="hint" style="margin-top: 10px;">After in-person verification with faculty: scan or upload a photo of your marks sheet. Good lighting and filling the frame around the H.T. No. box gives the most accurate reading. If the scanner can't read your sheet, use "Enter Marks Manually" instead.</p>
 
     <!-- Faculty actions -->
     <div id="facultyActions" class="button-stack hidden">
       <button id="createExamBtn" type="button">Create New Exam</button>
+      <button id="facultyScanBtn" type="button" class="secondary" disabled>Scan Student's Marks Sheet</button>
+      <button id="facultyUploadBtn" type="button" class="secondary" disabled>Upload Student's Marks Sheet</button>
       <button id="viewSubmissionsBtn" type="button" class="secondary" disabled>View Submissions</button>
       <button id="manualEntryBtn" type="button" class="secondary" disabled>Enter Marks Manually</button>
     </div>

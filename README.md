@@ -3,10 +3,13 @@
 Zero-cost PWA for capturing per-question exam marks from physical answer
 sheets straight into the Google Sheet that already does attainment
 calculation for that exam. A student scans or uploads a photo of the marks
-sheet; Gemini reads the boxed roll number and, best-effort, the Q1
-(objective) marks; the student checks/corrects those against the physical
-sheet and submits. Q2–Q7 (subjective, evaluator-graded) marks are entered
-separately by faculty. Every row lands directly in that exam's Sheet tab.
+sheet (or enters marks manually if the scanner can't read it); Gemini reads
+the boxed roll number and, best-effort, the Q1 (objective) marks; the
+student checks/corrects those against the physical sheet and submits.
+Q2–Q7 (subjective, evaluator-graded) marks are entered separately by
+faculty, either by scanning the sheet themselves (e.g. if a student didn't)
+or typing them in manually. Every row lands directly in that exam's Sheet
+tab.
 
 Sibling app: [student-achievement-tracker](https://github.com/chandrashakera/student-achievement-tracker)
 — same architecture (Apps Script Web App backend, no server, no login,
@@ -49,13 +52,17 @@ frontend/   PWA: index.html, app.js, style.css, config.js, manifest, service wor
 - Rows are keyed by Roll No. within an exam's tab — submitting the same
   roll no. again updates that row in place rather than duplicating it.
 - **Field ownership**: students only ever enter Roll No., Q1 (objective),
-  and Assignment. Q2–Q7 (subjective, evaluator-graded) are faculty-only —
-  entered later via Faculty mode's manual entry / edit-submission screen.
-  A student's `submitMarks` call omits Q2–Q7 entirely; the backend treats a
-  missing field as "leave it alone" (falls back to that row's existing
-  value, or 0 for a brand-new row), never as "set it to zero" — so a
-  student's submission never wipes out subjective marks faculty already
-  entered, and vice versa.
+  and Assignment — whether via scan/upload or Student mode's manual-entry
+  fallback. Q2–Q7 (subjective, evaluator-graded) are faculty-only, entered
+  via Faculty mode's own scan/upload, manual entry, or edit-submission
+  screen. Which fields are shown/required is driven entirely by the active
+  mode (Student vs Faculty), not by whether the entry came from OCR or
+  typing — a faculty scan captures Q2–Q7 individually just like a faculty
+  manual entry does. A student's `submitMarks` call omits Q2–Q7 entirely;
+  the backend treats a missing field as "leave it alone" (falls back to
+  that row's existing value, or 0 for a brand-new row), never as "set it to
+  zero" — so a student's submission never wipes out subjective marks
+  faculty already entered, and vice versa.
 - **Q1 entry**: all ten Q1 sub-questions (a–j) always carry the same mark,
   so the UI shows one "marks per sub-question" field instead of ten. On
   submit, that single value is expanded back into all of `q1a`..`q1j` in

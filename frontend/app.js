@@ -26,10 +26,16 @@ const state = {
   mode: 'student',        // 'student' | 'faculty'
   exams: [],
   currentExam: null,      // the selected exam's config object
-  photoFile: null,        // captured/uploaded File (student flow only)
-  isManualEntry: false,   // true for faculty manual-entry/edit (no photo step)
+  photoFile: null,        // captured/uploaded File (scan/upload flow only)
   editingRollNo: null     // set when faculty is editing an existing submission
 };
+
+// Q2-Q7 (subjective) marks, the Status field, and the Final Total are
+// faculty-only — regardless of whether this entry came from a scan/upload
+// or manual typing. Gate purely on role, never on how the entry got here.
+function isFacultyMode() {
+  return state.mode === 'faculty';
+}
 
 // ---- DOM refs ----
 const screens = {
@@ -58,9 +64,12 @@ const noExamsHint = document.getElementById('noExamsHint');
 
 const scanBtn = document.getElementById('scanBtn');
 const uploadBtn = document.getElementById('uploadBtn');
+const studentManualEntryBtn = document.getElementById('studentManualEntryBtn');
 const cameraInput = document.getElementById('cameraInput');
 const fileInput = document.getElementById('fileInput');
 const createExamBtn = document.getElementById('createExamBtn');
+const facultyScanBtn = document.getElementById('facultyScanBtn');
+const facultyUploadBtn = document.getElementById('facultyUploadBtn');
 const viewSubmissionsBtn = document.getElementById('viewSubmissionsBtn');
 const manualEntryBtn = document.getElementById('manualEntryBtn');
 
@@ -85,6 +94,9 @@ function updateHomeButtonStates() {
   const hasExam = !!state.currentExam;
   scanBtn.disabled = !hasExam;
   uploadBtn.disabled = !hasExam;
+  studentManualEntryBtn.disabled = !hasExam;
+  facultyScanBtn.disabled = !hasExam;
+  facultyUploadBtn.disabled = !hasExam;
   viewSubmissionsBtn.disabled = !hasExam;
   manualEntryBtn.disabled = !hasExam;
 }
@@ -116,8 +128,15 @@ async function loadExams(selectExamId) {
 
 scanBtn.addEventListener('click', () => cameraInput.click());
 uploadBtn.addEventListener('click', () => fileInput.click());
+facultyScanBtn.addEventListener('click', () => cameraInput.click());
+facultyUploadBtn.addEventListener('click', () => fileInput.click());
 cameraInput.addEventListener('change', (e) => handleFileSelected(e.target.files[0]));
 fileInput.addEventListener('change', (e) => handleFileSelected(e.target.files[0]));
+
+studentManualEntryBtn.addEventListener('click', () => {
+  state.editingRollNo = null;
+  enterMarksScreen({ rollNo: '', marks: {}, photo: null, title: 'Enter Marks Manually' });
+});
 
 function handleFileSelected(file) {
   if (!file) return;
@@ -186,7 +205,6 @@ async function runOcrPipeline() {
     mimeType: state.photoFile.type || 'image/jpeg'
   });
 
-  state.isManualEntry = false;
   state.editingRollNo = null;
   enterMarksScreen({
     rollNo: result.fields.rollNo || '',
@@ -308,7 +326,6 @@ async function loadSubmissions() {
     row.innerHTML = `<span class="roll">${escapeHtml(sub.rollNo)}</span>` +
       `<span class="meta">Final: ${escapeHtml(String(sub.finalTotal))} &middot; ${escapeHtml(sub.status || '')}</span>`;
     row.addEventListener('click', () => {
-      state.isManualEntry = true;
       state.editingRollNo = sub.rollNo;
       enterMarksScreen({
         rollNo: sub.rollNo,
@@ -323,7 +340,6 @@ async function loadSubmissions() {
 }
 
 manualEntryBtn.addEventListener('click', () => {
-  state.isManualEntry = true;
   state.editingRollNo = null;
   enterMarksScreen({ rollNo: '', marks: {}, photo: null, title: 'Enter Marks Manually' });
 });
@@ -435,7 +451,7 @@ function recomputeTotals() {
   totalObjective.textContent = String(objectiveTotal);
   totalAssignment.textContent = String(assignment);
 
-  if (!state.isManualEntry) {
+  if (!isFacultyMode()) {
     // Students never enter Q2-Q7 — those totals aren't known yet.
     totalBestFour.textContent = 'Pending';
     totalFinal.textContent = 'Pending (Q2–Q7 added by faculty)';
@@ -468,10 +484,10 @@ function updateSubmitEnablement() {
   const rollNoOk = marksRollNo.value.trim().length > 0;
   const assignmentOk = validateAssignmentField();
   // Both roles enter Q1. Q2-Q7 are faculty-only, so only faculty screens
-  // (manual entry / editing a submission) need those validated.
+  // need those validated.
   const q1Max = state.currentExam ? state.currentExam.q1Max : Infinity;
   const q1Ok = validateAndShowField('q1all', q1Max);
-  const subjectiveOk = !state.isManualEntry || SUBJECTIVE_FIELDS.every((f) => {
+  const subjectiveOk = !isFacultyMode() || SUBJECTIVE_FIELDS.every((f) => {
     const max = state.currentExam ? maxForField(state.currentExam, f) : Infinity;
     return validateAndShowField(f, max);
   });
@@ -503,12 +519,12 @@ function enterMarksScreen({ rollNo, marks, status, photo, title }) {
   marksAssignment.value = marks && marks.assignment !== undefined && marks.assignment !== null && marks.assignment !== '' ? String(marks.assignment) : '';
   marksAssignment.classList.remove('invalid');
 
-  marksStatusRow.classList.toggle('hidden', !state.isManualEntry);
+  marksStatusRow.classList.toggle('hidden', !isFacultyMode());
   marksStatus.value = status || '';
 
   // Q2-Q7 (subjective) are faculty-only — students never see or submit them.
-  subjectiveSection.classList.toggle('hidden', !state.isManualEntry);
-  subjectivePendingHint.classList.toggle('hidden', state.isManualEntry);
+  subjectiveSection.classList.toggle('hidden', !isFacultyMode());
+  subjectivePendingHint.classList.toggle('hidden', isFacultyMode());
 
   if (photo) {
     marksPreviewArea.classList.remove('hidden');
@@ -524,7 +540,7 @@ function enterMarksScreen({ rollNo, marks, status, photo, title }) {
 }
 
 marksBackBtn.addEventListener('click', () => {
-  showScreen(state.isManualEntry ? (state.editingRollNo ? 'submissions' : 'home') : 'home');
+  showScreen(state.editingRollNo ? 'submissions' : 'home');
 });
 
 marksSubmitBtn.addEventListener('click', () => {
@@ -551,10 +567,10 @@ async function submitMarks() {
   // Students only ever fill in Q1 — omit Q2-Q7 entirely so the backend
   // leaves those fields alone (fallback to existing/0) instead of zeroing
   // out marks faculty may have already entered.
-  if (state.isManualEntry) {
+  if (isFacultyMode()) {
     SUBJECTIVE_FIELDS.forEach((f) => { payload[f] = Number(markInputs[f].value); });
   }
-  if (state.isManualEntry && marksStatus.value.trim()) {
+  if (isFacultyMode() && marksStatus.value.trim()) {
     payload.status = marksStatus.value.trim();
   }
 
@@ -570,7 +586,6 @@ const submitAnotherBtn = document.getElementById('submitAnotherBtn');
 
 submitAnotherBtn.addEventListener('click', () => {
   state.photoFile = null;
-  state.isManualEntry = false;
   state.editingRollNo = null;
   showScreen('home');
 });
