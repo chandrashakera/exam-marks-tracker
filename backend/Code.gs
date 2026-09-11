@@ -325,6 +325,7 @@ function sanitizeGeminiFields_(fields) {
   ALL_MARK_FIELDS.forEach(function (key) {
     result[key] = fields[key] !== undefined && fields[key] !== null ? String(fields[key]) : '';
   });
+  result.assignment = fields.assignment !== undefined && fields.assignment !== null ? String(fields.assignment) : '';
   return result;
 }
 

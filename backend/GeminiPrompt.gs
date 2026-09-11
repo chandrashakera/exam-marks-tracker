@@ -3,7 +3,7 @@
  * sheet's marks grid — canonical, executable copy (this is the version
  * Code.gs actually sends to Gemini).
  *
- * Two extraction targets, sent in one combined vision call (mirrors
+ * Three extraction targets, sent in one combined vision call (mirrors
  * student-achievement-tracker's single-call-per-image pattern):
  *   - Roll No. (H.T. No.) — PRIORITY target. Printed in a boxed digit grid
  *     on the sheet, one digit per box. Read carefully digit-by-digit.
@@ -12,6 +12,9 @@
  *     sub-question. Never authoritative — every value just pre-fills an
  *     editable field, so it is far better to return "" for something
  *     illegible than to guess.
+ *   - Assignment mark — OPTIONAL, lower-confidence target. A single
+ *     hand-written value, usually labeled "Assignment" or "Asgn", separate
+ *     from the Q1-Q7 marks. Same guessing rules as the per-question marks.
  */
 
 var GEMINI_MARKS_EXTRACTION_PROMPT =
@@ -21,7 +24,7 @@ var GEMINI_MARKS_EXTRACTION_PROMPT =
   'first — read every piece of text and every number as if the sheet were ' +
   'upright, regardless of the orientation it was actually photographed in.\n\n' +
   'Return ONLY a single JSON object. No markdown code fences, no explanation, no leading or trailing text — just the raw JSON object, parseable by JSON.parse().\n\n' +
-  'The JSON object must have exactly these 23 keys, matching these exact names:\n\n' +
+  'The JSON object must have exactly these 24 keys, matching these exact names:\n\n' +
   '{\n' +
   '  "rollNo": string,\n' +
   '  "q1a": string, "q1b": string, "q1c": string, "q1d": string, "q1e": string,\n' +
@@ -31,7 +34,8 @@ var GEMINI_MARKS_EXTRACTION_PROMPT =
   '  "q4a": string, "q4b": string,\n' +
   '  "q5a": string, "q5b": string,\n' +
   '  "q6a": string, "q6b": string,\n' +
-  '  "q7a": string, "q7b": string\n' +
+  '  "q7a": string, "q7b": string,\n' +
+  '  "assignment": string\n' +
   '}\n\n' +
   'Field-by-field rules:\n\n' +
   '1. "rollNo" — THIS IS THE PRIORITY FIELD. It is printed in a boxed grid ' +
@@ -79,10 +83,16 @@ var GEMINI_MARKS_EXTRACTION_PROMPT =
   '   - Do not infer a mark from surrounding context (e.g. do not assume ' +
   'full marks because the answer looks complete) — only report a mark that ' +
   'is actually written down.\n\n' +
+  '3. "assignment" — a single hand-written mark, usually labeled ' +
+  '"Assignment" or "Asgn", separate from and not part of the Q1-Q7 marks. ' +
+  'It may appear in its own printed cell/row near the totals, or written ' +
+  'by hand elsewhere on the page. Same rules as the per-question marks ' +
+  'above: OPTIONAL, lower confidence, half-marks are common, return "" if ' +
+  'blank/illegible/absent rather than guessing.\n\n' +
   'General rules:\n' +
   '- Every value must be a plain string (use "" for unknown/illegible, ' +
   'never null, never omit a key).\n' +
-  '- Do not add any keys beyond the 23 listed above.\n' +
+  '- Do not add any keys beyond the 24 listed above.\n' +
   '- Do not wrap the JSON in markdown code fences (no ```json).\n' +
   '- CRITICAL: if the image does not actually appear to be a real, legible ' +
   'exam answer sheet / marks sheet — e.g. blank, corrupted, unrelated ' +
