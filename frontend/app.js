@@ -516,6 +516,7 @@ const submissionsExamLabel = document.getElementById('submissionsExamLabel');
 const submissionsList = document.getElementById('submissionsList');
 const submissionsEmptyHint = document.getElementById('submissionsEmptyHint');
 const submissionsBackBtn = document.getElementById('submissionsBackBtn');
+const submissionsLoadingSpinner = document.getElementById('submissionsLoadingSpinner');
 
 viewSubmissionsBtn.addEventListener('click', () => {
   loadSubmissions().catch((err) => {
@@ -533,33 +534,38 @@ async function loadSubmissions() {
   submissionsExamLabel.textContent = `${exam.examName} (${exam.subject})`;
   submissionsList.innerHTML = '';
   submissionsEmptyHint.classList.add('hidden');
+  submissionsLoadingSpinner.classList.remove('hidden');
   showScreen('submissions');
 
-  const result = await callApi('listSubmissions', { examId: exam.examId });
-  const submissions = result.submissions || [];
-  if (submissions.length === 0) {
-    submissionsEmptyHint.textContent = 'No submissions yet for this exam.';
-    submissionsEmptyHint.classList.remove('hidden');
-    return;
-  }
-  submissions.forEach((sub) => {
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.className = 'submission-row';
-    row.innerHTML = `<span class="roll">${escapeHtml(sub.rollNo)}</span>` +
-      `<span class="meta">Final: ${escapeHtml(String(sub.finalTotal))} &middot; ${escapeHtml(sub.status || '')}</span>`;
-    row.addEventListener('click', () => {
-      state.editingRollNo = sub.rollNo;
-      enterMarksScreen({
-        rollNo: sub.rollNo,
-        marks: sub,
-        status: sub.status,
-        photo: null,
-        title: `Edit Marks — ${sub.rollNo}`
+  try {
+    const result = await callApi('listSubmissions', { examId: exam.examId });
+    const submissions = result.submissions || [];
+    if (submissions.length === 0) {
+      submissionsEmptyHint.textContent = 'No submissions yet for this exam.';
+      submissionsEmptyHint.classList.remove('hidden');
+      return;
+    }
+    submissions.forEach((sub) => {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'submission-row';
+      row.innerHTML = `<span class="roll">${escapeHtml(sub.rollNo)}</span>` +
+        `<span class="meta">Final: ${escapeHtml(String(sub.finalTotal))} &middot; ${escapeHtml(sub.status || '')}</span>`;
+      row.addEventListener('click', () => {
+        state.editingRollNo = sub.rollNo;
+        enterMarksScreen({
+          rollNo: sub.rollNo,
+          marks: sub,
+          status: sub.status,
+          photo: null,
+          title: `Edit Marks — ${sub.rollNo}`
+        });
       });
+      submissionsList.appendChild(row);
     });
-    submissionsList.appendChild(row);
-  });
+  } finally {
+    submissionsLoadingSpinner.classList.add('hidden');
+  }
 }
 
 manualEntryBtn.addEventListener('click', () => {
