@@ -400,16 +400,21 @@ button.secondary {
   opacity: 0.9;
 }
 
-.privacy-link {
-  display: block;
-  text-align: center;
+.footer-links {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 14px;
   margin-top: 14px;
+}
+
+.footer-links a {
   color: var(--muted);
   font-size: 0.8rem;
   text-decoration: none;
 }
 
-.privacy-link:hover {
+.footer-links a:hover {
   color: var(--accent);
   text-decoration: underline;
 }
