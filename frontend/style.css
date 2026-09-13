@@ -213,6 +213,18 @@ button.secondary {
   to { transform: rotate(360deg); }
 }
 
+.spinner-sm {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-left: 4px;
+  vertical-align: -2px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
 #screen-processing, #screen-done {
   text-align: center;
 }

@@ -66,6 +66,7 @@ const facultyActions = document.getElementById('facultyActions');
 const studentHint = document.getElementById('studentHint');
 const examSelect = document.getElementById('examSelect');
 const noExamsHint = document.getElementById('noExamsHint');
+const examLoadingSpinner = document.getElementById('examLoadingSpinner');
 
 const scanBtn = document.getElementById('scanBtn');
 const uploadBtn = document.getElementById('uploadBtn');
@@ -108,6 +109,7 @@ function updateHomeButtonStates() {
 
 async function loadExams(selectExamId) {
   examSelect.innerHTML = '<option value="">Loading exams...</option>';
+  examLoadingSpinner.classList.remove('hidden');
   try {
     const result = await callApi('listExams', {});
     state.exams = result.exams || [];
@@ -128,6 +130,8 @@ async function loadExams(selectExamId) {
     updateHomeButtonStates();
   } catch (err) {
     examSelect.innerHTML = '<option value="">Failed to load exams</option>';
+  } finally {
+    examLoadingSpinner.classList.add('hidden');
   }
 }
 
