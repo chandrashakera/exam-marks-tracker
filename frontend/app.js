@@ -160,7 +160,9 @@ function handleFileSelected(file) {
 
 // ---- Preview screen ----
 const previewArea = document.getElementById('previewArea');
-const rotateBtn = document.getElementById('rotateBtn');
+const rotate90Btn = document.getElementById('rotate90Btn');
+const rotate180Btn = document.getElementById('rotate180Btn');
+const rotate270Btn = document.getElementById('rotate270Btn');
 const retakeBtn = document.getElementById('retakeBtn');
 const proceedBtn = document.getElementById('proceedBtn');
 
@@ -223,9 +225,15 @@ function rotateFileImage(file, degrees) {
   });
 }
 
-rotateBtn.addEventListener('click', () => {
-  rotateBtn.disabled = true;
-  const nextRotation = (state.photoRotation + 90) % 360;
+// Each button rotates the ORIGINAL capture to that exact absolute angle
+// (not relative to the current rotation), so any button can be tapped
+// directly without cycling through the others first. Tapping the button
+// for the angle already applied undoes it, back to the original capture.
+const rotateButtons = { 90: rotate90Btn, 180: rotate180Btn, 270: rotate270Btn };
+
+function applyRotation(targetDegrees) {
+  Object.values(rotateButtons).forEach((btn) => { btn.disabled = true; });
+  const nextRotation = state.photoRotation === targetDegrees ? 0 : targetDegrees;
   rotateFileImage(state.originalPhotoFile, nextRotation)
     .then((rotated) => {
       state.photoRotation = nextRotation;
@@ -236,8 +244,12 @@ rotateBtn.addEventListener('click', () => {
       // Non-fatal: the un-rotated capture is still usable as-is.
     })
     .finally(() => {
-      rotateBtn.disabled = false;
+      Object.values(rotateButtons).forEach((btn) => { btn.disabled = false; });
     });
+}
+
+Object.entries(rotateButtons).forEach(([degrees, btn]) => {
+  btn.addEventListener('click', () => applyRotation(Number(degrees)));
 });
 
 retakeBtn.addEventListener('click', () => {
