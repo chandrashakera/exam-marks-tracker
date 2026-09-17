@@ -428,11 +428,28 @@ async function runOcrPipeline() {
     mimeType: state.photoFile.type || 'image/jpeg'
   });
 
+  // Gemini reads the marks by mentally reorienting the photo regardless of
+  // its actual rotation, but the review screen still shows the photo as
+  // captured — straighten it here using the angle Gemini reported, so the
+  // person checking the marks isn't reading a sideways image.
+  const detectedRotation = Number(result.fields.rotationDegrees) || 0;
+  let displayPhoto = state.photoFile;
+  if (detectedRotation !== 0) {
+    const targetRotation = (state.photoRotation + detectedRotation) % 360;
+    try {
+      displayPhoto = await rotateFileImage(state.originalPhotoFile, targetRotation);
+      state.photoRotation = targetRotation;
+      state.photoFile = displayPhoto;
+    } catch (err) {
+      // Non-fatal: fall back to showing the photo as captured.
+    }
+  }
+
   state.editingRollNo = null;
   enterMarksScreen({
     rollNo: result.fields.rollNo || '',
     marks: result.fields,
-    photo: state.photoFile,
+    photo: displayPhoto,
     title: 'Enter Marks'
   });
 }

@@ -3,7 +3,7 @@
  * sheet's marks grid — canonical, executable copy (this is the version
  * Code.gs actually sends to Gemini).
  *
- * Three extraction targets, sent in one combined vision call (mirrors
+ * Four extraction targets, sent in one combined vision call (mirrors
  * student-achievement-tracker's single-call-per-image pattern):
  *   - Roll No. (H.T. No.) — PRIORITY target. Printed in a boxed digit grid
  *     on the sheet, one digit per box. Read carefully digit-by-digit.
@@ -15,6 +15,10 @@
  *   - Assignment mark — OPTIONAL, lower-confidence target. A single
  *     hand-written value, usually labeled "Assignment" or "Asgn", separate
  *     from the Q1-Q7 marks. Same guessing rules as the per-question marks.
+ *   - Rotation — the clockwise angle (0/90/180/270) needed to make the
+ *     photo upright, purely for the app to auto-straighten the on-screen
+ *     preview. Gemini still reads every field above by mentally
+ *     reorienting the image itself, regardless of this value.
  */
 
 var GEMINI_MARKS_EXTRACTION_PROMPT =
@@ -24,7 +28,7 @@ var GEMINI_MARKS_EXTRACTION_PROMPT =
   'first — read every piece of text and every number as if the sheet were ' +
   'upright, regardless of the orientation it was actually photographed in.\n\n' +
   'Return ONLY a single JSON object. No markdown code fences, no explanation, no leading or trailing text — just the raw JSON object, parseable by JSON.parse().\n\n' +
-  'The JSON object must have exactly these 24 keys, matching these exact names:\n\n' +
+  'The JSON object must have exactly these 25 keys, matching these exact names:\n\n' +
   '{\n' +
   '  "rollNo": string,\n' +
   '  "q1a": string, "q1b": string, "q1c": string, "q1d": string, "q1e": string,\n' +
@@ -35,7 +39,8 @@ var GEMINI_MARKS_EXTRACTION_PROMPT =
   '  "q5a": string, "q5b": string,\n' +
   '  "q6a": string, "q6b": string,\n' +
   '  "q7a": string, "q7b": string,\n' +
-  '  "assignment": string\n' +
+  '  "assignment": string,\n' +
+  '  "rotationDegrees": string\n' +
   '}\n\n' +
   'Field-by-field rules:\n\n' +
   '1. "rollNo" — THIS IS THE PRIORITY FIELD. It is printed in a boxed grid ' +
@@ -89,10 +94,27 @@ var GEMINI_MARKS_EXTRACTION_PROMPT =
   'by hand elsewhere on the page. Same rules as the per-question marks ' +
   'above: OPTIONAL, lower confidence, half-marks are common, return "" if ' +
   'blank/illegible/absent rather than guessing.\n\n' +
+  '4. "rotationDegrees" — the clockwise angle needed to make THIS PHOTO ' +
+  'upright (the correct orientation for a person to read it normally). ' +
+  'Must be exactly one of these four strings: "0", "90", "180", "270". ' +
+  'This only tells the app how to auto-straighten the preview image for ' +
+  'display — it has no effect on how you read the fields above; keep ' +
+  'reading those by mentally reorienting the image yourself, as ' +
+  'instructed earlier.\n' +
+  '   - "0" — the photo is already upright (text reads normally, left to ' +
+  'right, top to bottom).\n' +
+  '   - "90" — the sheet\'s top edge is at the LEFT side of the photo ' +
+  '(rotating the photo 90° clockwise would make it upright).\n' +
+  '   - "270" — the sheet\'s top edge is at the RIGHT side of the photo ' +
+  '(rotating the photo 90° counter-clockwise, i.e. 270° clockwise, would ' +
+  'make it upright).\n' +
+  '   - "180" — the sheet is upside-down.\n' +
+  '   If the image is not a legible exam sheet (see the all-empty rule ' +
+  'below), return "0" for this field.\n\n' +
   'General rules:\n' +
   '- Every value must be a plain string (use "" for unknown/illegible, ' +
   'never null, never omit a key).\n' +
-  '- Do not add any keys beyond the 24 listed above.\n' +
+  '- Do not add any keys beyond the 25 listed above.\n' +
   '- Do not wrap the JSON in markdown code fences (no ```json).\n' +
   '- CRITICAL: if the image does not actually appear to be a real, legible ' +
   'exam answer sheet / marks sheet — e.g. blank, corrupted, unrelated ' +

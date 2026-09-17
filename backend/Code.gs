@@ -47,6 +47,10 @@ var Q_PAIRS = [['q2a', 'q2b'], ['q3a', 'q3b'], ['q4a', 'q4b'], ['q5a', 'q5b'], [
 var SUBJECTIVE_FIELDS = Q_PAIRS.reduce(function (acc, pair) { return acc.concat(pair); }, []);
 var ALL_MARK_FIELDS = Q1_FIELDS.concat(SUBJECTIVE_FIELDS);
 
+// Clockwise angle Gemini reports the captured photo needs, to auto-
+// straighten the review-screen preview client-side (see structure()).
+var VALID_ROTATION_DEGREES = ['0', '90', '180', '270'];
+
 var EXAMS_HEADERS = ['Exam ID', 'Exam Name', 'Subject', 'Q1 Max (per sub-question)']
   .concat(SUBJECTIVE_FIELDS.map(function (f) { return f.charAt(0).toUpperCase() + f.slice(1) + ' Max'; }))
   .concat(['Assignment Max', 'Marks Tab Name', 'Created At']);
@@ -326,6 +330,8 @@ function sanitizeGeminiFields_(fields) {
     result[key] = fields[key] !== undefined && fields[key] !== null ? String(fields[key]) : '';
   });
   result.assignment = fields.assignment !== undefined && fields.assignment !== null ? String(fields.assignment) : '';
+  var rawRotation = fields.rotationDegrees !== undefined && fields.rotationDegrees !== null ? String(fields.rotationDegrees) : '0';
+  result.rotationDegrees = VALID_ROTATION_DEGREES.indexOf(rawRotation) !== -1 ? rawRotation : '0';
   return result;
 }
 
